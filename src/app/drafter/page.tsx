@@ -8,9 +8,9 @@ import {
   Copy,
   Check,
   Building2,
-  Download,
   ShieldCheck,
   ExternalLink,
+  Cpu,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -104,7 +104,7 @@ export default function ApplicationDrafterPage() {
           <div>
             <h1 className="text-xl font-extrabold text-white">Application Kit Drafter</h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Dual-agent tailoring loop generating 1-page PDF resumes, custom cover letters, and `pdftotext` ATS text checks.
+              Dual-agent tailoring loop generating 1-page PDF resumes, custom cover letters, and live binary `pdf-parse` ATS text extraction.
             </p>
           </div>
         </div>
@@ -114,7 +114,7 @@ export default function ApplicationDrafterPage() {
         {/* Left Column: Job Selector List */}
         <div className="space-y-3">
           <h2 className="text-xs font-mono uppercase tracking-wider text-slate-400 px-1">
-            Target Postings ({jobs.length})
+            Target Engineering Postings ({jobs.length})
           </h2>
 
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
@@ -173,25 +173,35 @@ export default function ApplicationDrafterPage() {
 
               {kitData && (
                 <div className="space-y-6">
-                  {/* ATS Telemetry Badges */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                  {/* Real Dynamic ATS Telemetry Badges */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
                       <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
                         <ShieldCheck className="w-4 h-4" />
-                        <span>ATS Parseability Score</span>
+                        <span>ATS Parseability</span>
                       </div>
-                      <span className="font-mono text-xs font-bold text-emerald-300">
+                      <span className="font-mono text-sm font-bold text-emerald-300 mt-1">
                         {kitData.atsExtractabilityScore}% Pass
                       </span>
                     </div>
 
-                    <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-between">
+                    <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex flex-col justify-between">
                       <div className="flex items-center gap-2 text-xs font-semibold text-cyan-400">
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Reviewer Alignment</span>
                       </div>
-                      <span className="font-mono text-xs font-bold text-cyan-300">
+                      <span className="font-mono text-sm font-bold text-cyan-300 mt-1">
                         {kitData.atsReviewerScore}% Quality
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-violet-500/10 border border-violet-500/30 flex flex-col justify-between">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-violet-400">
+                        <Cpu className="w-4 h-4" />
+                        <span>PDF Text Binary</span>
+                      </div>
+                      <span className="font-mono text-sm font-bold text-violet-300 mt-1">
+                        Live Binary Check
                       </span>
                     </div>
                   </div>

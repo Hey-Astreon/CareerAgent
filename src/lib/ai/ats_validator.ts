@@ -1,19 +1,20 @@
-import { exec } from "child_process";
-import util from "util";
 import fs from "fs";
-
-const execAsync = util.promisify(exec);
 
 export interface ATSValidationResult {
   isParseable: boolean;
-  extractabilityScore: number; // 0 to 100%
+  extractabilityScore: number; // Real dynamic score (e.g. 88%, 94%, 100%)
   extractedCharCount: number;
   extractedTextSample: string;
+  sectionHeadersFound: string[];
 }
 
+const REQUIRED_ATS_HEADERS = [
+  "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS", "SUMMARY"
+];
+
 /**
- * Validates compiled PDF file using Poppler `pdftotext` CLI tool
- * to ensure real ATS systems (Greenhouse, Lever, Workday) can extract text cleanly.
+ * Dynamically parses PDF file binary using pdf-parse to calculate real ATS text extractability,
+ * section header coverage, and encoding purity.
  */
 export async function validatePDFExtractability(pdfPath: string): Promise<ATSValidationResult> {
   if (!fs.existsSync(pdfPath)) {
@@ -22,46 +23,79 @@ export async function validatePDFExtractability(pdfPath: string): Promise<ATSVal
       extractabilityScore: 0,
       extractedCharCount: 0,
       extractedTextSample: "PDF file does not exist on disk.",
+      sectionHeadersFound: [],
     };
   }
 
   try {
-    // Execute pdftotext CLI command
-    const { stdout } = await execAsync(`pdftotext "${pdfPath}" -`);
-    const cleanText = stdout.trim();
-    const charCount = cleanText.length;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PDFParse } = require("pdf-parse");
+    const fileBuffer = fs.readFileSync(pdfPath);
+    const uint8Data = new Uint8Array(fileBuffer);
 
-    if (charCount > 200) {
-      return {
-        isParseable: true,
-        extractabilityScore: 100,
-        extractedCharCount: charCount,
-        extractedTextSample: cleanText.substring(0, 300) + "...",
-      };
+    const parser = new PDFParse(uint8Data);
+    await parser.load();
+    const textData = await parser.getText();
+    
+    const rawText = textData?.text || "";
+    const cleanText = rawText.replace(/\s+/g, " ").trim();
+    const charCount = cleanText.length;
+    const upperText = cleanText.toUpperCase();
+
+    // Find present ATS headers
+    const headersFound = REQUIRED_ATS_HEADERS.filter((header) =>
+      upperText.includes(header)
+    );
+
+    // Calculate dynamic ATS score metrics
+    let score = 0;
+
+    // 1. Text Density & Character Count (Max 40 points)
+    if (charCount > 3000) {
+      score += 40;
+    } else if (charCount > 1500) {
+      score += 35;
+    } else if (charCount > 800) {
+      score += 25;
+    } else if (charCount > 300) {
+      score += 15;
     } else {
-      return {
-        isParseable: true,
-        extractabilityScore: 85,
-        extractedCharCount: charCount,
-        extractedTextSample: cleanText || "Extracted low text token density.",
-      };
+      score += 5;
     }
+
+    // 2. Section Header Coverage (Max 30 points)
+    const headerRatio = headersFound.length / REQUIRED_ATS_HEADERS.length;
+    score += Math.round(headerRatio * 30);
+
+    // 3. ASCII / Text Encoding Purity (Max 30 points)
+    const nonAsciiCount = (cleanText.match(/[^\x00-\x7F]/g) || []).length;
+    const nonAsciiRatio = charCount > 0 ? nonAsciiCount / charCount : 0;
+    
+    if (nonAsciiRatio < 0.02) {
+      score += 30;
+    } else if (nonAsciiRatio < 0.05) {
+      score += 20;
+    } else {
+      score += 10;
+    }
+
+    const finalScore = Math.min(100, Math.max(25, score));
+
+    return {
+      isParseable: charCount > 100,
+      extractabilityScore: finalScore,
+      extractedCharCount: charCount,
+      extractedTextSample: cleanText.substring(0, 250) + "...",
+      sectionHeadersFound: headersFound,
+    };
   } catch (err) {
-    // If pdftotext CLI is missing, fallback to file size & text token presence check
-    const stats = fs.statSync(pdfPath);
-    if (stats.size > 5000) {
-      return {
-        isParseable: true,
-        extractabilityScore: 98,
-        extractedCharCount: Math.floor(stats.size / 10),
-        extractedTextSample: "Verified PDF layout structure and selectable text layer.",
-      };
-    }
+    console.warn("[ATS Validator Warning] PDF parsing error:", (err as Error).message);
     return {
       isParseable: false,
-      extractabilityScore: 50,
+      extractabilityScore: 40,
       extractedCharCount: 0,
-      extractedTextSample: `pdftotext execution warning: ${(err as Error).message}`,
+      extractedTextSample: `PDF parsing error: ${(err as Error).message}`,
+      sectionHeadersFound: [],
     };
   }
 }
