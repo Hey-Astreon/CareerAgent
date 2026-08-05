@@ -1,0 +1,161 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ApplicationStatus {
+  DISCOVERED
+  SHORTLISTED
+  APPLIED
+  SCREENING
+  TECHNICAL_ROUND
+  OFFER
+  REJECTED
+  QUIET
+}
+
+enum PlatformSource {
+  LINKEDIN
+  WELLFOUND
+  YC_JOBS
+  NAUKRI
+  GREENHOUSE
+  LEVER
+  ASHBY
+  MICRO1
+  ALIGNER
+  DIRECT_PORTAL
+}
+
+model Profile {
+  id               String              @id @default(uuid())
+  slug             String              @unique // "roushan" or "ayushi"
+  fullName         String
+  title            String
+  email            String
+  phone            String?
+  location         String
+  portfolioUrl     String?
+  githubUrl        String?
+  linkedinUrl      String?
+  masterResumePath String
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  projects         Project[]
+  virtualExps      VirtualExperience[]
+  applications     Application[]
+  matchScores      MatchScore[]
+
+  @@map("profiles")
+}
+
+model Project {
+  id           String   @id @default(uuid())
+  profileId    String
+  title        String
+  techStack    String
+  liveDemoUrl  String?
+  githubUrl    String?
+  architecture String
+  bulletPoints String // JSON string
+  createdAt    DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("projects")
+}
+
+model VirtualExperience {
+  id           String   @id @default(uuid())
+  profileId    String
+  company      String
+  roleTitle    String
+  period       String
+  problemScope String
+  actionTaken  String
+  outcome      String
+  createdAt    DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("virtual_experiences")
+}
+
+model JobPosting {
+  id             String         @id @default(uuid())
+  urlHash        String         @unique // SHA256 hash of URL for deduplication
+  url            String
+  company        String
+  title          String
+  platform       PlatformSource
+  location       String
+  isRemote       Boolean        @default(true)
+  applicantCount Int?
+  postedAt       DateTime
+  rawDescription String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  matchScores  MatchScore[]
+  applications Application[]
+
+  @@index([postedAt])
+  @@index([isRemote])
+  @@map("job_postings")
+}
+
+model MatchScore {
+  id            String   @id @default(uuid())
+  profileId     String
+  jobPostingId  String
+  score         Int // 0 to 100
+  hardSkills    String // JSON string array
+  missingSkills String // JSON string array
+  reasoning     String
+  evaluatedAt   DateTime @default(now())
+
+  profile    Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, jobPostingId])
+  @@map("match_scores")
+}
+
+model Application {
+  id                     String            @id @default(uuid())
+  profileId              String
+  jobPostingId           String
+  status                 ApplicationStatus @default(DISCOVERED)
+  tailoredCvPath         String?
+  tailoredCoverLetter    String?
+  atsExtractabilityScore Int?
+  appliedAt              DateTime?
+  lastContactAt          DateTime?
+  notes                  String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  profile        Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobPosting     JobPosting      @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  interviewPreps InterviewPrep[]
+
+  @@index([profileId, status])
+  @@map("applications")
+}
+
+model InterviewPrep {
+  id            String      @id @default(uuid())
+  applicationId String
+  starStories   String // JSON string
+  companyNotes  String?
+  mockRoleplay  String?
+  createdAt     DateTime    @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("interview_preps")
+}
