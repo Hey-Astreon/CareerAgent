@@ -1,4 +1,4 @@
-import axios from "axios";
+import { queryMultiProviderLLM } from "./router";
 import { CandidateContext } from "./scorer";
 
 export interface TailoredKitResult {
@@ -14,7 +14,8 @@ export interface TailoredKitResult {
 }
 
 /**
- * Drafter-Reviewer dual-agent loop tailoring candidate CV & cover letter for a target posting.
+ * Drafter-Reviewer dual-agent loop powered by Multi-Provider LLM Router
+ * (Groq -> Cerebras -> Gemini -> NVIDIA NIM).
  */
 export async function generateTailoredKit(
   candidate: CandidateContext,
@@ -22,14 +23,9 @@ export async function generateTailoredKit(
   company: string,
   jobDescription: string
 ): Promise<TailoredKitResult> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+  const drafterSystemPrompt = `You are an elite Resume Architect tailoring an application kit for ${candidate.fullName}. Return ONLY JSON with keys: tailoredSummary, tailoredProjects (array of objects with title, techStack, bullets), coverLetter.`;
 
-  if (apiKey && process.env.GEMINI_API_KEY) {
-    try {
-      // 1. Drafter Agent Prompt
-      const drafterPrompt = `
-You are an elite Resume Architect and Staff Software Engineer tailoring an application kit for ${candidate.fullName}.
-
+  const drafterUserPrompt = `
 TARGET ROLE: ${jobTitle} at ${company}
 JOB DESCRIPTION:
 ${jobDescription}
@@ -42,86 +38,36 @@ ${candidate.masterProjects.map((p) => `- ${p.title} (${p.techStack}): ${p.archit
 
 TASKS:
 1. Write a high-impact, 4-line Professional Summary tailored to this role.
-2. Select the candidate's top 3 flagship projects and rewrite 3 bullet points per project using bold category prefixes (e.g., "Product Architecture:", "Performance & Security:"). Include tech stack metrics.
+2. Select top 3 flagship projects and rewrite 3 bullet points per project using bold category prefixes.
 3. Write a professional, compelling 4-paragraph Cover Letter addressed to the Hiring Manager at ${company}.
-
-Output JSON strictly format:
-{
-  "tailoredSummary": "...",
-  "tailoredProjects": [
-    {
-      "title": "Astra Vision - Developer Sandbox & Code Graph Parser",
-      "techStack": "FastAPI, Python, Monaco, Tree-Sitter",
-      "bullets": [
-        "Product Architecture: Architected an automated code-parsing platform...",
-        "Sandbox Runtime Challenge: Built a self-healing execution engine...",
-        "Indexing Performance: Integrated Tree-Sitter AST compilers..."
-      ]
-    }
-  ],
-  "coverLetter": "Dear Hiring Manager at ${company},\n\nI am writing to express my strong enthusiasm..."
-}
 `;
 
-      const draftRes = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          contents: [{ parts: [{ text: drafterPrompt }] }],
-          generationConfig: { responseMimeType: "application/json" },
-        },
-        { timeout: 15000 }
-      );
+  try {
+    const draftRes = await queryMultiProviderLLM(drafterSystemPrompt, drafterUserPrompt, true);
+    if (draftRes.text) {
+      const draft = JSON.parse(draftRes.text);
 
-      const rawDraftJson = draftRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (rawDraftJson) {
-        const draft = JSON.parse(rawDraftJson);
-
-        // 2. Reviewer Agent Critique Prompt
-        const reviewerPrompt = `
-You are a Senior Technical Recruiter reviewing an application kit.
-Evaluate the following tailored resume summary and cover letter against the Job Description.
-
-JOB DESCRIPTION:
-${jobDescription}
-
-DRAFTED APPLICATION KIT:
-Summary: ${draft.tailoredSummary}
-Cover Letter: ${draft.coverLetter}
-
-TASK:
-1. Assign an ATS Reviewer Quality Score from 80 to 100.
-2. Provide 1 sentence of constructive review feedback.
-
-Output JSON format:
-{
-  "atsReviewerScore": 96,
-  "reviewerFeedback": "Exceptional alignment with backend REST APIs and microservice performance metrics."
-}
+      // Reviewer Agent Prompt
+      const reviewerSystemPrompt = `You are a Senior Technical Recruiter reviewing an application kit. Return ONLY JSON: {"atsReviewerScore": 96, "reviewerFeedback": "..."}`;
+      const reviewerUserPrompt = `
+JOB DESCRIPTION: ${jobDescription}
+DRAFTED SUMMARY: ${draft.tailoredSummary}
+DRAFTED COVER LETTER: ${draft.coverLetter}
 `;
 
-        const reviewRes = await axios.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-          {
-            contents: [{ parts: [{ text: reviewerPrompt }] }],
-            generationConfig: { responseMimeType: "application/json" },
-          },
-          { timeout: 10000 }
-        );
+      const reviewRes = await queryMultiProviderLLM(reviewerSystemPrompt, reviewerUserPrompt, true);
+      const reviewData = reviewRes.text ? JSON.parse(reviewRes.text) : { atsReviewerScore: 95, reviewerFeedback: "High technical keyword alignment." };
 
-        const rawReviewJson = reviewRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        const reviewData = rawReviewJson ? JSON.parse(rawReviewJson) : { atsReviewerScore: 94, reviewerFeedback: "High ATS keyword alignment." };
-
-        return {
-          tailoredSummary: draft.tailoredSummary,
-          tailoredProjects: draft.tailoredProjects || [],
-          coverLetter: draft.coverLetter,
-          atsReviewerScore: reviewData.atsReviewerScore || 95,
-          reviewerFeedback: reviewData.reviewerFeedback || "Excellent technical alignment.",
-        };
-      }
-    } catch (err) {
-      console.warn("[Drafter Agent Warning] Gemini API failed, using fallback drafter:", (err as Error).message);
+      return {
+        tailoredSummary: draft.tailoredSummary,
+        tailoredProjects: draft.tailoredProjects || [],
+        coverLetter: draft.coverLetter,
+        atsReviewerScore: reviewData.atsReviewerScore || 95,
+        reviewerFeedback: `${reviewData.reviewerFeedback || "Excellent technical alignment."} (Powered by ${draftRes.provider.toUpperCase()})`,
+      };
     }
+  } catch (err) {
+    console.warn("[Drafter Agent Warning] Multi-provider query failed, using fallback drafter:", (err as Error).message);
   }
 
   // Fallback Rule-Based Application Kit Drafter

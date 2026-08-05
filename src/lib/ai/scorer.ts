@@ -1,4 +1,4 @@
-import axios from "axios";
+import { queryMultiProviderLLM } from "./router";
 
 export interface MatchResult {
   score: number; // 0 to 100
@@ -34,7 +34,8 @@ function checkDomainRelevance(jobTitle: string): boolean {
 }
 
 /**
- * Evaluates candidate fit against a job description using Gemini API or rule-based semantic matcher fallback.
+ * Evaluates candidate fit against a job description using the Multi-Provider LLM Router
+ * (Groq -> Cerebras -> Gemini -> NVIDIA NIM).
  */
 export async function evaluateJobMatch(
   candidate: CandidateContext,
@@ -51,13 +52,9 @@ export async function evaluateJobMatch(
     };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+  const systemPrompt = `You are a Staff Software Architect scoring a candidate's technical fit for a software engineering job posting. Return ONLY JSON matching schema: {"score": 92, "hardSkills": ["Node.js"], "missingSkills": ["Kubernetes"], "reasoning": "..."}`;
 
-  if (apiKey && process.env.GEMINI_API_KEY) {
-    try {
-      const prompt = `
-You are a Staff Software Architect scoring a candidate's technical fit for a software engineering job posting.
-
+  const userPrompt = `
 CANDIDATE PROFILE:
 Name: ${candidate.fullName}
 Title: ${candidate.title}
@@ -73,42 +70,25 @@ TASK:
 1. Score technical fit from 0 to 100%.
 2. List matched technical hard skills.
 3. List missing technical skills/requirements.
-4. Provide 2 concise sentences explaining why.
-
-Output JSON strictly format:
-{
-  "score": 92,
-  "hardSkills": ["Node.js", "TypeScript", "Redis"],
-  "missingSkills": ["Kubernetes"],
-  "reasoning": "Candidate exhibits strong alignment with Node.js microservices and Redis rate limiting through flagship projects."
-}
+4. Provide 2 concise sentences explaining technical alignment.
 `;
 
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json" },
-        },
-        { timeout: 12000 }
-      );
-
-      const rawJson = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (rawJson) {
-        const parsed = JSON.parse(rawJson);
-        return {
-          score: Math.min(100, Math.max(0, parsed.score || 85)),
-          hardSkills: parsed.hardSkills || [],
-          missingSkills: parsed.missingSkills || [],
-          reasoning: parsed.reasoning || "Strong technical alignment.",
-        };
-      }
-    } catch (err) {
-      console.warn("[AI Scorer Warning] Gemini API evaluation failed, using fallback matcher:", (err as Error).message);
+  try {
+    const llmRes = await queryMultiProviderLLM(systemPrompt, userPrompt, true);
+    if (llmRes.text) {
+      const parsed = JSON.parse(llmRes.text);
+      return {
+        score: Math.min(100, Math.max(0, parsed.score || 85)),
+        hardSkills: parsed.hardSkills || [],
+        missingSkills: parsed.missingSkills || [],
+        reasoning: `${parsed.reasoning || "Strong technical alignment."} (Powered by ${llmRes.provider.toUpperCase()})`,
+      };
     }
+  } catch (err) {
+    console.warn("[AI Scorer Warning] Multi-provider query failed, using fallback matcher:", (err as Error).message);
   }
 
-  // Local Rule-Based Semantic Matcher Fallback
+  // Local Rule-Based Fallback Matcher
   return fallbackRuleBasedMatcher(candidate, jobTitle, jobDescription);
 }
 
