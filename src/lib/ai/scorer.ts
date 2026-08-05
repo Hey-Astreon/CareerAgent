@@ -22,6 +22,17 @@ export interface CandidateContext {
   }>;
 }
 
+const SWE_KEYWORDS = [
+  "engineer", "developer", "architect", "software", "backend",
+  "full stack", "fullstack", "ai", "machine learning", "systems",
+  "frontend", "platform", "infrastructure"
+];
+
+function checkDomainRelevance(jobTitle: string): boolean {
+  const lower = jobTitle.toLowerCase();
+  return SWE_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 /**
  * Evaluates candidate fit against a job description using Gemini API or rule-based semantic matcher fallback.
  */
@@ -30,12 +41,22 @@ export async function evaluateJobMatch(
   jobTitle: string,
   jobDescription: string
 ): Promise<MatchResult> {
+  // Domain relevance check: If non-tech role, assign low score immediately
+  if (!checkDomainRelevance(jobTitle)) {
+    return {
+      score: 25,
+      hardSkills: [],
+      missingSkills: ["Software Engineering Background"],
+      reasoning: `Domain Mismatch: Role "${jobTitle}" is operational or non-engineering, offering low career alignment for Candidate's software engineering background.`,
+    };
+  }
+
   const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
 
   if (apiKey && process.env.GEMINI_API_KEY) {
     try {
       const prompt = `
-You are an expert technical recruiter and software architect scoring a candidate's fit for a job posting.
+You are a Staff Software Architect scoring a candidate's technical fit for a software engineering job posting.
 
 CANDIDATE PROFILE:
 Name: ${candidate.fullName}
@@ -43,21 +64,18 @@ Title: ${candidate.title}
 Flagship Projects:
 ${candidate.masterProjects.map((p) => `- ${p.title} (${p.techStack}): ${p.architecture}`).join("\n")}
 
-Virtual Experiences:
-${candidate.virtualExps.map((e) => `- ${e.company} (${e.roleTitle}): ${e.outcome}`).join("\n")}
-
 JOB POSTING:
 Title: ${jobTitle}
 Description:
 ${jobDescription}
 
 TASK:
-1. Score fit from 0 to 100 percentage.
-2. List matched hard skills.
-3. List missing hard skills/requirements.
+1. Score technical fit from 0 to 100%.
+2. List matched technical hard skills.
+3. List missing technical skills/requirements.
 4. Provide 2 concise sentences explaining why.
 
-Output JSON strictly in format:
+Output JSON strictly format:
 {
   "score": 92,
   "hardSkills": ["Node.js", "TypeScript", "Redis"],
@@ -82,7 +100,7 @@ Output JSON strictly in format:
           score: Math.min(100, Math.max(0, parsed.score || 85)),
           hardSkills: parsed.hardSkills || [],
           missingSkills: parsed.missingSkills || [],
-          reasoning: parsed.reasoning || "Strong candidate technical alignment.",
+          reasoning: parsed.reasoning || "Strong technical alignment.",
         };
       }
     } catch (err) {
@@ -117,7 +135,6 @@ function fallbackRuleBasedMatcher(
     }
   }
 
-  // Candidate skill checks
   const candidateKeywords = candidate.masterProjects
     .map((p) => p.techStack.toLowerCase())
     .join(" ");
@@ -129,12 +146,12 @@ function fallbackRuleBasedMatcher(
     }
   }
 
-  const baseScore = 80 + Math.min(matched.length * 2, 18);
+  const baseScore = 78 + Math.min(matched.length * 3, 20);
 
   return {
     score: Math.min(98, baseScore),
     hardSkills: matched.length > 0 ? matched.slice(0, 5) : ["TypeScript", "Node.js", "REST APIs"],
     missingSkills: missing.length > 0 ? missing : ["Kubernetes"],
-    reasoning: `High technical overlap across candidate's flagship architectures and backend REST API standards.`,
+    reasoning: `Technical alignment across candidate's software architectures and API specifications.`,
   };
 }
