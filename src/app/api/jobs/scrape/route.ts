@@ -5,7 +5,6 @@ import { scrapeAshbyCompany } from "@/lib/scrapers/ashby";
 import { scrapeLinkedInRemoteJobs } from "@/lib/scrapers/linkedin";
 import { scrapeYCJobs } from "@/lib/scrapers/playwright";
 
-// Verified high-impact public Greenhouse boards
 const TARGET_GREENHOUSE_COMPANIES = [
   "vercel",
   "stripe",
@@ -30,11 +29,39 @@ const TARGET_GREENHOUSE_COMPANIES = [
   "mongodb",
 ];
 
-// Verified public Lever boards
 const TARGET_LEVER_COMPANIES = ["scaleai", "brex"];
-
-// Verified public Ashby boards
 const TARGET_ASHBY_COMPANIES = ["linear", "supabase", "ramp"];
+
+/**
+ * Interleaves jobs from different platforms (LinkedIn, Ashby, Greenhouse, Lever, YC)
+ * in round-robin fashion so candidates see a rich mix on page load rather than 50 Greenhouse jobs in a row.
+ */
+function interleavePlatforms<T extends { platform: string }>(jobsList: T[]): T[] {
+  const groups: Record<string, T[]> = {};
+  for (const item of jobsList) {
+    const key = item.platform || "OTHER";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  }
+
+  const keys = Object.keys(groups);
+  const result: T[] = [];
+  let added = true;
+  let idx = 0;
+
+  while (added) {
+    added = false;
+    for (const k of keys) {
+      if (idx < groups[k].length) {
+        result.push(groups[k][idx]);
+        added = true;
+      }
+    }
+    idx++;
+  }
+
+  return result;
+}
 
 export async function POST() {
   try {
@@ -73,7 +100,6 @@ export async function POST() {
 
     let insertedCount = 0;
 
-    // Deduplicate & save new jobs to SQLite database
     for (const job of allScraped) {
       const existing = await db.jobPosting.findUnique({
         where: { urlHash: job.urlHash },
@@ -100,17 +126,18 @@ export async function POST() {
       }
     }
 
-    // Fetch updated jobs list
-    const activeJobs = await db.jobPosting.findMany({
+    const rawActive = await db.jobPosting.findMany({
       orderBy: { postedAt: "desc" },
-      take: 100,
+      take: 500,
     });
+
+    const mixedJobs = interleavePlatforms(rawActive);
 
     return NextResponse.json({
       success: true,
       scrapedTotal: allScraped.length,
       newJobsInserted: insertedCount,
-      jobs: activeJobs,
+      jobs: mixedJobs,
     });
   } catch (error) {
     console.error("Scraper API Error:", error);
@@ -123,12 +150,14 @@ export async function POST() {
 
 export async function GET() {
   try {
-    const jobs = await db.jobPosting.findMany({
+    const rawActive = await db.jobPosting.findMany({
       orderBy: { postedAt: "desc" },
-      take: 100,
+      take: 500,
     });
 
-    return NextResponse.json({ success: true, jobs });
+    const mixedJobs = interleavePlatforms(rawActive);
+
+    return NextResponse.json({ success: true, jobs: mixedJobs });
   } catch (error) {
     console.error("Error fetching jobs:", error);
     return NextResponse.json(

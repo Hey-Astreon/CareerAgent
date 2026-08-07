@@ -114,6 +114,22 @@ export default function Home() {
     return combined.sort();
   }, [jobs]);
 
+  // Dynamically compute exact platform counts for user awareness
+  const platformCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      LINKEDIN: 0,
+      GREENHOUSE: 0,
+      ASHBY: 0,
+      LEVER: 0,
+      YC_JOBS: 0,
+    };
+    for (const j of jobs) {
+      const p = j.platform?.toUpperCase();
+      if (p) counts[p] = (counts[p] || 0) + 1;
+    }
+    return counts;
+  }, [jobs]);
+
   // Apply Search + Role Category + Job Type + Experience Level Filters
   // GUARD: Always hide Senior/Staff roles even if they slipped through the scraper filter
   const filteredJobs = jobs.filter((job) => {
@@ -261,12 +277,12 @@ export default function Home() {
               onChange={(e) => setSelectedPlatform(e.target.value)}
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-cyan-300 border-cyan-500/30 focus:outline-none focus:border-cyan-500/50 cursor-pointer font-mono font-semibold"
             >
-              <option value="ALL">All Platforms (LinkedIn, Greenhouse, Lever, Ashby, YC)</option>
-              <option value="LINKEDIN">LinkedIn Remote Jobs</option>
-              <option value="GREENHOUSE">Greenhouse ATS</option>
-              <option value="ASHBY">Ashby ATS</option>
-              <option value="LEVER">Lever ATS</option>
-              <option value="YC_JOBS">YC Work at a Startup</option>
+              <option value="ALL">All Platforms ({jobs.length})</option>
+              <option value="LINKEDIN">LinkedIn Remote ({platformCounts.LINKEDIN || 0})</option>
+              <option value="GREENHOUSE">Greenhouse ATS ({platformCounts.GREENHOUSE || 0})</option>
+              <option value="ASHBY">Ashby ATS ({platformCounts.ASHBY || 0})</option>
+              <option value="LEVER">Lever ATS ({platformCounts.LEVER || 0})</option>
+              <option value="YC_JOBS">YC Jobs ({platformCounts.YC_JOBS || 0})</option>
             </select>
           </div>
 
