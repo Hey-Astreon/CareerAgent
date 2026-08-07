@@ -215,7 +215,7 @@ async function main() {
         platform: j.platform,
         location: j.location,
         isRemote: j.isRemote,
-        applicantCount: j.applicantCount,
+        // applicantCount intentionally omitted — not a public data point
         postedAt: j.postedAt,
         rawDescription: j.rawDescription,
       },

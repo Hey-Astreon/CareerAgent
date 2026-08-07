@@ -3,8 +3,12 @@ import { db } from "@/lib/db";
 import { scrapeGreenhouseCompany, scrapeLeverCompany, ScrapedJob } from "@/lib/scrapers/ats";
 import { scrapeYCJobs } from "@/lib/scrapers/playwright";
 
-const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare", "github"];
-const TARGET_LEVER_COMPANIES = ["anthropic", "palantir", "scaleai"];
+// These companies have verified public Greenhouse API endpoints.
+// github returns 404 on their Greenhouse board — removed.
+const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare"];
+
+// Verified Lever boards. Anthropic 404s. Palantir has no request limit and hangs — removed.
+const TARGET_LEVER_COMPANIES = ["scaleai"];
 
 export async function POST() {
   try {
@@ -24,14 +28,7 @@ export async function POST() {
 
     // 3. Run YC Playwright scraper
     const ycJobs = await scrapeYCJobs();
-    for (const ycj of ycJobs) {
-      allScraped.push({
-        ...ycj,
-        category: "Software Developer",
-        jobType: "Remote Full-Time",
-        experienceLevel: "0-3 Years (Entry/Junior)",
-      });
-    }
+    allScraped.push(...ycJobs);
 
     let insertedCount = 0;
 
@@ -54,7 +51,7 @@ export async function POST() {
             platform: job.platform,
             location: job.location,
             isRemote: job.isRemote,
-            applicantCount: job.applicantCount,
+            // applicantCount intentionally omitted — not a public data point
             postedAt: job.postedAt,
             rawDescription: job.rawDescription,
           },

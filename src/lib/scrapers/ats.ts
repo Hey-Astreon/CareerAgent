@@ -14,7 +14,6 @@ export interface ScrapedJob {
   platform: PlatformSource;
   location: string;
   isRemote: boolean;
-  applicantCount?: number;
   postedAt: Date;
   rawDescription: string;
 }
