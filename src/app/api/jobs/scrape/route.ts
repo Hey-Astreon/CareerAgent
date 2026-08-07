@@ -3,8 +3,7 @@ import { db } from "@/lib/db";
 import { scrapeGreenhouseCompany, scrapeLeverCompany, ScrapedJob } from "@/lib/scrapers/ats";
 import { scrapeYCJobs } from "@/lib/scrapers/playwright";
 
-// Top remote engineering tech companies using Greenhouse / Lever ATS
-const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare"];
+const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare", "github"];
 const TARGET_LEVER_COMPANIES = ["anthropic", "palantir", "scaleai"];
 
 export async function POST() {
@@ -25,7 +24,14 @@ export async function POST() {
 
     // 3. Run YC Playwright scraper
     const ycJobs = await scrapeYCJobs();
-    allScraped.push(...ycJobs);
+    for (const ycj of ycJobs) {
+      allScraped.push({
+        ...ycj,
+        category: "Software Developer",
+        jobType: "Remote Full-Time",
+        experienceLevel: "0-3 Years (Entry/Junior)",
+      });
+    }
 
     let insertedCount = 0;
 
@@ -42,6 +48,9 @@ export async function POST() {
             url: job.url,
             company: job.company,
             title: job.title,
+            category: job.category || "Software Developer",
+            jobType: job.jobType || "Remote Full-Time",
+            experienceLevel: job.experienceLevel || "0-3 Years (Entry/Junior)",
             platform: job.platform,
             location: job.location,
             isRemote: job.isRemote,
@@ -57,7 +66,7 @@ export async function POST() {
     // Fetch updated jobs list
     const activeJobs = await db.jobPosting.findMany({
       orderBy: { postedAt: "desc" },
-      take: 20,
+      take: 50,
     });
 
     return NextResponse.json({
@@ -79,7 +88,7 @@ export async function GET() {
   try {
     const jobs = await db.jobPosting.findMany({
       orderBy: { postedAt: "desc" },
-      take: 20,
+      take: 50,
     });
 
     return NextResponse.json({ success: true, jobs });

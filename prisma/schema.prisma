@@ -86,25 +86,29 @@ model VirtualExperience {
 }
 
 model JobPosting {
-  id             String         @id @default(uuid())
-  urlHash        String         @unique // SHA256 hash of URL for deduplication
-  url            String
-  company        String
-  title          String
-  platform       PlatformSource
-  location       String
-  isRemote       Boolean        @default(true)
-  applicantCount Int?
-  postedAt       DateTime
-  rawDescription String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id              String         @id @default(uuid())
+  urlHash         String         @unique // SHA256 hash of URL for deduplication
+  url             String
+  company         String
+  title           String
+  category        String         @default("Software Developer")
+  jobType         String         @default("Remote Full-Time")
+  experienceLevel String         @default("0-3 Years (Entry/Junior)")
+  platform        PlatformSource
+  location        String
+  isRemote        Boolean        @default(true)
+  applicantCount  Int?
+  postedAt        DateTime
+  rawDescription  String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   matchScores  MatchScore[]
   applications Application[]
 
   @@index([postedAt])
   @@index([isRemote])
+  @@index([category])
   @@map("job_postings")
 }
 

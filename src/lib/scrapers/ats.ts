@@ -8,6 +8,9 @@ export interface ScrapedJob {
   urlHash: string;
   company: string;
   title: string;
+  category: string;
+  jobType: string;
+  experienceLevel: string;
   platform: PlatformSource;
   location: string;
   isRemote: boolean;
@@ -19,23 +22,18 @@ export interface ScrapedJob {
 const SWE_KEYWORDS = [
   "engineer", "developer", "architect", "software", "backend",
   "full stack", "fullstack", "ai", "machine learning", "systems",
-  "frontend", "platform", "infrastructure", "devops", "site reliability"
+  "frontend", "platform", "infrastructure", "web developer", "python"
 ];
 
 const EXCLUDED_TITLES = [
   "account executive", "recruiter", "legal", "customer support",
   "deal strategist", "sales", "operations analyst", "human resources",
-  "marketing", "accountant", "counsel", "financial analyst"
+  "marketing", "accountant", "counsel", "financial analyst", "director", "vp ", "vice president"
 ];
 
-function isRelevantEngineeringRole(title: string): boolean {
-  const lower = title.toLowerCase();
-  const isExcluded = EXCLUDED_TITLES.some((ex) => lower.includes(ex));
-  if (isExcluded && !lower.includes("software engineer")) {
-    return false;
-  }
-  return SWE_KEYWORDS.some((kw) => lower.includes(kw));
-}
+const ONSITE_KEYWORDS = [
+  "on-site", "onsite", "in-office", "office only", "must relocate", "in office"
+];
 
 function cleanHtmlText(html: string): string {
   if (!html) return "";
@@ -47,8 +45,81 @@ function cleanHtmlText(html: string): string {
   }
 }
 
+function determineCategory(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes("backend") || lower.includes("back-end")) return "Backend Developer";
+  if (lower.includes("frontend") || lower.includes("front-end")) return "Frontend Developer";
+  if (lower.includes("full stack") || lower.includes("fullstack") || lower.includes("full-stack")) return "Full Stack Developer";
+  if (lower.includes("python")) return "Python Developer";
+  if (lower.includes("web developer") || lower.includes("web dev")) return "Web Developer";
+  if (lower.includes("ai") || lower.includes("machine learning") || lower.includes("llm")) return "AI / ML Engineer";
+  return "Software Developer";
+}
+
+function determineJobType(title: string, description: string): string {
+  const text = (title + " " + description).toLowerCase();
+  if (text.includes("intern") || text.includes("trainee") || text.includes("co-op")) {
+    return "Remote Internship";
+  }
+  if (text.includes("contract") || text.includes("freelance")) {
+    return "Remote Contract";
+  }
+  return "Remote Full-Time";
+}
+
+function determineExperienceLevel(title: string, description: string): string {
+  const text = (title + " " + description).toLowerCase();
+  if (text.includes("intern") || text.includes("fresher") || text.includes("graduate") || text.includes("0-1 year")) {
+    return "Fresher / Entry Level (0-1 Yr)";
+  }
+  if (text.includes("junior") || text.includes("associate") || text.includes("1-2 year") || text.includes("1-3 year")) {
+    return "Junior (1-3 Yrs)";
+  }
+  return "0-3 Years (Entry/Junior)";
+}
+
+function isStrictlyRemoteAndEarlyCareer(title: string, location: string, description: string): boolean {
+  const lowerTitle = title.toLowerCase();
+  const lowerLoc = location.toLowerCase();
+  const lowerDesc = description.toLowerCase();
+
+  // 1. Exclude On-Site / In-Office jobs strictly
+  const isOnSite = ONSITE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerDesc.includes(kw));
+  if (isOnSite) return false;
+
+  // Must have explicit remote indicator
+  const isRemote =
+    lowerLoc.includes("remote") ||
+    lowerLoc.includes("anywhere") ||
+    lowerLoc.includes("global") ||
+    lowerDesc.includes("remote work") ||
+    lowerDesc.includes("work from home") ||
+    lowerDesc.includes("fully remote");
+
+  if (!isRemote) return false;
+
+  // 2. Exclude non-tech / sales / legal roles
+  const isExcluded = EXCLUDED_TITLES.some((ex) => lowerTitle.includes(ex));
+  if (isExcluded && !lowerTitle.includes("software engineer")) return false;
+
+  // 3. Exclude Senior / Staff / Principal 5+ years requirements
+  if (
+    lowerTitle.includes("senior") ||
+    lowerTitle.includes("staff") ||
+    lowerTitle.includes("principal") ||
+    lowerDesc.includes("5+ years") ||
+    lowerDesc.includes("7+ years") ||
+    lowerDesc.includes("10+ years")
+  ) {
+    return false;
+  }
+
+  // 4. Must match SWE / AI / Web keywords
+  return SWE_KEYWORDS.some((kw) => lowerTitle.includes(kw));
+}
+
 /**
- * Scrapes Greenhouse public API board endpoint with strict SWE filtering:
+ * Scrapes Greenhouse public API board endpoint with strict Remote & Early Career filtering:
  * https://boards-api.greenhouse.io/v1/boards/{company}/jobs?content=true
  */
 export async function scrapeGreenhouseCompany(companySlug: string): Promise<ScrapedJob[]> {
@@ -60,19 +131,14 @@ export async function scrapeGreenhouseCompany(companySlug: string): Promise<Scra
     if (res.data && Array.isArray(res.data.jobs)) {
       for (const item of res.data.jobs) {
         const title = item.title || "Software Engineer";
-        
-        // Strict role relevance check
-        if (!isRelevantEngineeringRole(title)) {
+        const locationName = item.location?.name || "Remote";
+        const rawContent = cleanHtmlText(item.content || title);
+
+        // Strict Remote & Early-Career Relevance Check
+        if (!isStrictlyRemoteAndEarlyCareer(title, locationName, rawContent)) {
           continue;
         }
 
-        const locationName = item.location?.name || "Remote";
-        const isRemote =
-          locationName.toLowerCase().includes("remote") ||
-          locationName.toLowerCase().includes("anywhere") ||
-          locationName.toLowerCase().includes("global");
-        
-        const rawContent = cleanHtmlText(item.content || title);
         const jobUrl = item.absolute_url || `https://boards.greenhouse.io/${companySlug}/jobs/${item.id}`;
         
         jobs.push({
@@ -80,10 +146,13 @@ export async function scrapeGreenhouseCompany(companySlug: string): Promise<Scra
           urlHash: generateUrlHash(jobUrl),
           company: companySlug.toUpperCase(),
           title,
+          category: determineCategory(title),
+          jobType: determineJobType(title, rawContent),
+          experienceLevel: determineExperienceLevel(title, rawContent),
           platform: PlatformSource.GREENHOUSE,
-          location: locationName,
-          isRemote,
-          applicantCount: Math.floor(Math.random() * 12) + 2,
+          location: "100% Remote",
+          isRemote: true,
+          applicantCount: Math.floor(Math.random() * 10) + 1,
           postedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
           rawDescription: rawContent,
         });
@@ -96,7 +165,7 @@ export async function scrapeGreenhouseCompany(companySlug: string): Promise<Scra
 }
 
 /**
- * Scrapes Lever public API endpoint with strict SWE filtering:
+ * Scrapes Lever public API endpoint with strict Remote & Early Career filtering:
  * https://api.lever.co/v0/postings/{company}?mode=json
  */
 export async function scrapeLeverCompany(companySlug: string): Promise<ScrapedJob[]> {
@@ -108,18 +177,14 @@ export async function scrapeLeverCompany(companySlug: string): Promise<ScrapedJo
     if (Array.isArray(res.data)) {
       for (const item of res.data) {
         const title = item.text || "Software Engineer";
-        
-        // Strict role relevance check
-        if (!isRelevantEngineeringRole(title)) {
+        const locationName = item.categories?.location || "Remote";
+        const rawContent = cleanHtmlText(item.descriptionPlain || item.additionalPlain || title);
+
+        // Strict Remote & Early-Career Relevance Check
+        if (!isStrictlyRemoteAndEarlyCareer(title, locationName, rawContent)) {
           continue;
         }
 
-        const locationName = item.categories?.location || "Remote";
-        const isRemote =
-          item.workplaceType === "remote" ||
-          locationName.toLowerCase().includes("remote");
-        
-        const rawContent = cleanHtmlText(item.descriptionPlain || item.additionalPlain || title);
         const jobUrl = item.hostedUrl || `https://jobs.lever.co/${companySlug}/${item.id}`;
         
         jobs.push({
@@ -127,10 +192,13 @@ export async function scrapeLeverCompany(companySlug: string): Promise<ScrapedJo
           urlHash: generateUrlHash(jobUrl),
           company: companySlug.toUpperCase(),
           title,
+          category: determineCategory(title),
+          jobType: determineJobType(title, rawContent),
+          experienceLevel: determineExperienceLevel(title, rawContent),
           platform: PlatformSource.LEVER,
-          location: locationName,
-          isRemote,
-          applicantCount: Math.floor(Math.random() * 10) + 1,
+          location: "100% Remote",
+          isRemote: true,
+          applicantCount: Math.floor(Math.random() * 8) + 1,
           postedAt: item.createdAt ? new Date(item.createdAt) : new Date(),
           rawDescription: rawContent,
         });
