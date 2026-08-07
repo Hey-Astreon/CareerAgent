@@ -39,6 +39,21 @@ function cleanText(htmlOrText: string): string {
   return htmlOrText.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
 }
 
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const posted = new Date(dateStr).getTime();
+  const diffMs = now - posted;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return `1 day ago`;
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return `${Math.floor(diffDays / 30)}mo ago`;
+}
+
 export default function Home() {
   const { activeProfile, activeProfileSlug } = useProfileStore();
   const [jobs, setJobs] = useState<JobItem[]>([]);
@@ -351,16 +366,8 @@ export default function Home() {
                     <span>•</span>
                     <span className="flex items-center gap-1 text-cyan-300">
                       <Clock className="w-3.5 h-3.5" />
-                      {new Date(job.postedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      Posted {timeAgo(job.postedAt)}
                     </span>
-                    {job.applicantCount && (
-                      <>
-                        <span>•</span>
-                        <span className="text-amber-400 font-semibold">
-                          🔥 {job.applicantCount} Applicants
-                        </span>
-                      </>
-                    )}
                   </div>
 
                   <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed font-sans">

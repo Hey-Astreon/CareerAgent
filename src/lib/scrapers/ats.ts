@@ -319,7 +319,6 @@ export async function scrapeGreenhouseCompany(companySlug: string): Promise<Scra
           platform: PlatformSource.GREENHOUSE,
           location: "100% Remote",
           isRemote: true,
-          applicantCount: Math.floor(Math.random() * 10) + 1,
           postedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
           rawDescription: rawContent,
         });
@@ -363,7 +362,6 @@ export async function scrapeLeverCompany(companySlug: string): Promise<ScrapedJo
           platform: PlatformSource.LEVER,
           location: "100% Remote",
           isRemote: true,
-          applicantCount: Math.floor(Math.random() * 8) + 1,
           postedAt: item.createdAt ? new Date(item.createdAt) : new Date(),
           rawDescription: rawContent,
         });
