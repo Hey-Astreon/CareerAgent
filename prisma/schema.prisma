@@ -145,21 +145,7 @@ model Application {
 
   profile        Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
   jobPosting     JobPosting      @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
-  interviewPreps InterviewPrep[]
 
   @@index([profileId, status])
   @@map("applications")
-}
-
-model InterviewPrep {
-  id            String      @id @default(uuid())
-  applicationId String
-  starStories   String // JSON string
-  companyNotes  String?
-  mockRoleplay  String?
-  createdAt     DateTime    @default(now())
-
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-
-  @@map("interview_preps")
 }

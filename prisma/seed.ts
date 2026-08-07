@@ -2,19 +2,45 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import path from "path";
 import { scrapeGreenhouseCompany, scrapeLeverCompany } from "../src/lib/scrapers/ats";
+import { scrapeAshbyCompany } from "../src/lib/scrapers/ashby";
+import { scrapeLinkedInRemoteJobs } from "../src/lib/scrapers/linkedin";
+import { scrapeYCJobs } from "../src/lib/scrapers/playwright";
 
 const dbPath = path.join(process.cwd(), "prisma", "dev.db");
 const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
 const db = new PrismaClient({ adapter });
 
-const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare", "github"];
-const TARGET_LEVER_COMPANIES = ["scaleai"];
+const TARGET_GREENHOUSE_COMPANIES = [
+  "vercel",
+  "stripe",
+  "gitlab",
+  "discord",
+  "cloudflare",
+  "coinbase",
+  "doordash",
+  "hashicorp",
+  "automattic",
+  "elastic",
+  "reddit",
+  "airtable",
+  "webflow",
+  "sourcegraph",
+  "zapier",
+  "docker",
+  "datadog",
+  "sentry",
+  "cockroachlabs",
+  "databricks",
+  "mongodb",
+];
+
+const TARGET_LEVER_COMPANIES = ["scaleai", "brex"];
+const TARGET_ASHBY_COMPANIES = ["linear", "supabase", "ramp"];
 
 async function main() {
-  console.log("Seeding database with Roushan Kumar & Ayushi Raj profiles and ingesting 100% REAL live remote postings...");
+  console.log("Seeding database with Roushan Kumar & Ayushi Raj profiles and ingesting MULTI-PLATFORM REAL live remote postings (LinkedIn, Greenhouse, Lever, Ashby, YC)...");
 
   // Reset existing data cleanly
-  await db.interviewPrep.deleteMany();
   await db.application.deleteMany();
   await db.matchScore.deleteMany();
   await db.jobPosting.deleteMany();
@@ -190,40 +216,62 @@ async function main() {
     },
   });
 
-  // 3. Ingest REAL Live Remote Postings from Greenhouse & Lever APIs
+  // 3. Ingest MULTI-PLATFORM Real Live Remote Postings (LinkedIn, Greenhouse, Lever, Ashby, YC)
   const realJobs = [];
+
+  console.log("-> Scraping LinkedIn Remote Jobs...");
+  const linkedinJobs = await scrapeLinkedInRemoteJobs();
+  realJobs.push(...linkedinJobs);
+
+  console.log("-> Scraping Greenhouse Company Boards...");
   for (const company of TARGET_GREENHOUSE_COMPANIES) {
     const scraped = await scrapeGreenhouseCompany(company);
     realJobs.push(...scraped);
   }
+
+  console.log("-> Scraping Lever Company Boards...");
   for (const company of TARGET_LEVER_COMPANIES) {
     const scraped = await scrapeLeverCompany(company);
     realJobs.push(...scraped);
   }
 
-  let insertedCount = 0;
-  for (const j of realJobs) {
-    await db.jobPosting.create({
-      data: {
-        urlHash: j.urlHash,
-        url: j.url,
-        company: j.company,
-        title: j.title,
-        category: j.category,
-        jobType: j.jobType,
-        experienceLevel: j.experienceLevel,
-        platform: j.platform,
-        location: j.location,
-        isRemote: j.isRemote,
-        // applicantCount intentionally omitted — not a public data point
-        postedAt: j.postedAt,
-        rawDescription: j.rawDescription,
-      },
-    });
-    insertedCount++;
+  console.log("-> Scraping Ashby Company Boards...");
+  for (const company of TARGET_ASHBY_COMPANIES) {
+    const scraped = await scrapeAshbyCompany(company);
+    realJobs.push(...scraped);
   }
 
-  console.log(`Successfully seeded profiles & ingested REAL live jobs:\n - Roushan (ID: ${roushan.id})\n - Ayushi (ID: ${ayushi.id})\n - Real Live Scraped Postings: ${insertedCount}`);
+  console.log("-> Scraping YC Remote Jobs...");
+  const ycJobs = await scrapeYCJobs();
+  realJobs.push(...ycJobs);
+
+  let insertedCount = 0;
+  for (const j of realJobs) {
+    const existing = await db.jobPosting.findUnique({
+      where: { urlHash: j.urlHash },
+    });
+    if (!existing) {
+      await db.jobPosting.create({
+        data: {
+          urlHash: j.urlHash,
+          url: j.url,
+          company: j.company,
+          title: j.title,
+          category: j.category,
+          jobType: j.jobType,
+          experienceLevel: j.experienceLevel,
+          platform: j.platform,
+          location: j.location,
+          isRemote: j.isRemote,
+          postedAt: j.postedAt,
+          rawDescription: j.rawDescription,
+        },
+      });
+      insertedCount++;
+    }
+  }
+
+  console.log(`Successfully seeded profiles & ingested REAL live jobs across LINKEDIN, GREENHOUSE, LEVER, ASHBY & YC:\n - Roushan (ID: ${roushan.id})\n - Ayushi (ID: ${ayushi.id})\n - Real Live Scraped Postings: ${insertedCount}`);
 }
 
 main()

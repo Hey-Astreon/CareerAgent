@@ -7,17 +7,15 @@ import {
   Target,
   FileText,
   Kanban,
-  Mic,
   Settings,
   Sparkles,
 } from "lucide-react";
 
 const navItems = [
-  { name: "Live Discovery Feed", href: "/", icon: Globe, badge: "⚡ 2h" },
+  { name: "Live Discovery Feed", href: "/", icon: Globe, badge: "⚡ Live" },
   { name: "Fit & Match Studio", href: "/match", icon: Target },
   { name: "Application Drafter", href: "/drafter", icon: FileText },
   { name: "Funnel Tracker", href: "/tracker", icon: Kanban },
-  { name: "STAR Interview Prep", href: "/interview", icon: Mic },
   { name: "Workspace Settings", href: "/settings", icon: Settings },
 ];
 

@@ -1,32 +1,73 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { scrapeGreenhouseCompany, scrapeLeverCompany, ScrapedJob } from "@/lib/scrapers/ats";
+import { scrapeAshbyCompany } from "@/lib/scrapers/ashby";
+import { scrapeLinkedInRemoteJobs } from "@/lib/scrapers/linkedin";
 import { scrapeYCJobs } from "@/lib/scrapers/playwright";
 
-// These companies have verified public Greenhouse API endpoints.
-// github returns 404 on their Greenhouse board — removed.
-const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare"];
+// Verified high-impact public Greenhouse boards
+const TARGET_GREENHOUSE_COMPANIES = [
+  "vercel",
+  "stripe",
+  "gitlab",
+  "discord",
+  "cloudflare",
+  "coinbase",
+  "doordash",
+  "hashicorp",
+  "automattic",
+  "elastic",
+  "reddit",
+  "airtable",
+  "webflow",
+  "sourcegraph",
+  "zapier",
+  "docker",
+  "datadog",
+  "sentry",
+  "cockroachlabs",
+  "databricks",
+  "mongodb",
+];
 
-// Verified Lever boards. Anthropic 404s. Palantir has no request limit and hangs — removed.
-const TARGET_LEVER_COMPANIES = ["scaleai"];
+// Verified public Lever boards
+const TARGET_LEVER_COMPANIES = ["scaleai", "brex"];
+
+// Verified public Ashby boards
+const TARGET_ASHBY_COMPANIES = ["linear", "supabase", "ramp"];
 
 export async function POST() {
   try {
     const allScraped: ScrapedJob[] = [];
 
-    // 1. Run Greenhouse scrapers
+    // 1. Run LinkedIn Remote Jobs scraper (Real Live LinkedIn Postings)
+    console.log("Ingesting LinkedIn Remote Jobs...");
+    const linkedinJobs = await scrapeLinkedInRemoteJobs();
+    allScraped.push(...linkedinJobs);
+
+    // 2. Run Greenhouse scrapers
+    console.log("Ingesting Greenhouse Company Boards...");
     for (const company of TARGET_GREENHOUSE_COMPANIES) {
       const companyJobs = await scrapeGreenhouseCompany(company);
       allScraped.push(...companyJobs);
     }
 
-    // 2. Run Lever scrapers
+    // 3. Run Lever scrapers
+    console.log("Ingesting Lever Company Boards...");
     for (const company of TARGET_LEVER_COMPANIES) {
       const companyJobs = await scrapeLeverCompany(company);
       allScraped.push(...companyJobs);
     }
 
-    // 3. Run YC Playwright scraper
+    // 4. Run Ashby scrapers
+    console.log("Ingesting Ashby Company Boards...");
+    for (const company of TARGET_ASHBY_COMPANIES) {
+      const companyJobs = await scrapeAshbyCompany(company);
+      allScraped.push(...companyJobs);
+    }
+
+    // 5. Run YC Playwright scraper
+    console.log("Ingesting YC Remote Jobs...");
     const ycJobs = await scrapeYCJobs();
     allScraped.push(...ycJobs);
 
@@ -51,7 +92,6 @@ export async function POST() {
             platform: job.platform,
             location: job.location,
             isRemote: job.isRemote,
-            // applicantCount intentionally omitted — not a public data point
             postedAt: job.postedAt,
             rawDescription: job.rawDescription,
           },
@@ -63,7 +103,7 @@ export async function POST() {
     // Fetch updated jobs list
     const activeJobs = await db.jobPosting.findMany({
       orderBy: { postedAt: "desc" },
-      take: 50,
+      take: 100,
     });
 
     return NextResponse.json({
@@ -85,7 +125,7 @@ export async function GET() {
   try {
     const jobs = await db.jobPosting.findMany({
       orderBy: { postedAt: "desc" },
-      take: 50,
+      take: 100,
     });
 
     return NextResponse.json({ success: true, jobs });

@@ -61,6 +61,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [selectedJobType, setSelectedJobType] = useState("ALL");
   const [selectedExpLevel, setSelectedExpLevel] = useState("ALL");
+  const [selectedPlatform, setSelectedPlatform] = useState("ALL");
   const [isScraping, setIsScraping] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
 
@@ -156,7 +157,11 @@ export default function Home() {
       selectedExpLevel === "ALL" ||
       computedExp.toLowerCase().includes(selectedExpLevel.toLowerCase());
 
-    return matchesSearch && matchesCategory && matchesType && matchesExp;
+    const matchesPlatform =
+      selectedPlatform === "ALL" ||
+      job.platform.toUpperCase() === selectedPlatform.toUpperCase();
+
+    return matchesSearch && matchesCategory && matchesType && matchesExp && matchesPlatform;
   });
 
   return (
@@ -236,7 +241,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Search Box */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -247,6 +252,22 @@ export default function Home() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 font-sans"
             />
+          </div>
+
+          {/* Platform Source Dropdown */}
+          <div>
+            <select
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-cyan-300 border-cyan-500/30 focus:outline-none focus:border-cyan-500/50 cursor-pointer font-mono font-semibold"
+            >
+              <option value="ALL">All Platforms (LinkedIn, Greenhouse, Lever, Ashby, YC)</option>
+              <option value="LINKEDIN">LinkedIn Remote Jobs</option>
+              <option value="GREENHOUSE">Greenhouse ATS</option>
+              <option value="ASHBY">Ashby ATS</option>
+              <option value="LEVER">Lever ATS</option>
+              <option value="YC_JOBS">YC Work at a Startup</option>
+            </select>
           </div>
 
           {/* Dynamic Role Category Dropdown */}
