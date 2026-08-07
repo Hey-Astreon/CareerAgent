@@ -99,7 +99,10 @@ export default function Home() {
   }, [jobs]);
 
   // Apply Search + Role Category + Job Type + Experience Level Filters
+  // GUARD: Always hide Senior/Staff roles even if they slipped through the scraper filter
   const filteredJobs = jobs.filter((job) => {
+    const computedExp = determineExperienceLevel(job.title, job.rawDescription);
+    if (computedExp === "Senior / Staff Level (5+ Yrs)") return false;
     const matchesSearch =
       job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.company.toLowerCase().includes(searchTerm.toLowerCase());
@@ -134,7 +137,6 @@ export default function Home() {
       selectedJobType === "ALL" ||
       computedType.toLowerCase().includes(selectedJobType.toLowerCase());
 
-    const computedExp = determineExperienceLevel(job.title, job.rawDescription);
     const matchesExp =
       selectedExpLevel === "ALL" ||
       computedExp.toLowerCase().includes(selectedExpLevel.toLowerCase());
@@ -270,9 +272,11 @@ export default function Home() {
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-cyan-500/50 cursor-pointer font-mono"
             >
               <option value="ALL">All Early Career (0-3 Yrs)</option>
-              <option value="Fresher">Fresher / Entry Level (0-1 Yr)</option>
+              <option value="Fresher / Entry Level">Fresher / Entry Level (0-1 Yr)</option>
               <option value="Junior">Junior (1-3 Yrs)</option>
-              <option value="Internship">Internship / Co-op</option>
+              <option value="0-3 Years">0-3 Years (Entry/Junior)</option>
+              <option value="Mid-Level">Mid-Level (2-4 Yrs)</option>
+              <option value="Internship">Remote Internship</option>
             </select>
           </div>
         </div>

@@ -8,7 +8,7 @@ const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
 const db = new PrismaClient({ adapter });
 
 const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare", "github"];
-const TARGET_LEVER_COMPANIES = ["anthropic", "palantir", "scaleai"];
+const TARGET_LEVER_COMPANIES = ["scaleai"];
 
 async function main() {
   console.log("Seeding database with Roushan Kumar & Ayushi Raj profiles and ingesting 100% REAL live remote postings...");
