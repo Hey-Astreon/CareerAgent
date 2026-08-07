@@ -1,18 +1,17 @@
-import { PrismaClient, PlatformSource } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import path from "path";
-import crypto from "crypto";
+import { scrapeGreenhouseCompany, scrapeLeverCompany } from "../src/lib/scrapers/ats";
 
 const dbPath = path.join(process.cwd(), "prisma", "dev.db");
 const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
 const db = new PrismaClient({ adapter });
 
-function makeHash(url: string) {
-  return crypto.createHash("sha256").update(url.toLowerCase()).digest("hex");
-}
+const TARGET_GREENHOUSE_COMPANIES = ["vercel", "stripe", "gitlab", "discord", "cloudflare", "github"];
+const TARGET_LEVER_COMPANIES = ["anthropic", "palantir", "scaleai"];
 
 async function main() {
-  console.log("Seeding database with Roushan Kumar & Ayushi Raj profiles and initial remote postings...");
+  console.log("Seeding database with Roushan Kumar & Ayushi Raj profiles and ingesting 100% REAL live remote postings...");
 
   // Reset existing data cleanly
   await db.interviewPrep.deleteMany();
@@ -191,64 +190,22 @@ async function main() {
     },
   });
 
-  // 3. Seed Sample Remote 100% Work-From-Home Early Career Jobs
-  const sampleJobs = [
-    {
-      company: "VERCEL",
-      title: "Backend & Systems Software Developer (Remote)",
-      category: "Backend Developer",
-      jobType: "Remote Full-Time",
-      experienceLevel: "0-3 Years (Entry/Junior)",
-      platform: PlatformSource.GREENHOUSE,
-      url: "https://boards.greenhouse.io/vercel/jobs/501",
-      rawDescription: "Building Next.js Edge infrastructure, Rust compilation pipelines, and high-performance serverless Node.js REST API gateways.",
-    },
-    {
-      company: "SUPABASE",
-      title: "Full Stack Software Developer - Remote",
-      category: "Full Stack Developer",
-      jobType: "Remote Full-Time",
-      experienceLevel: "Junior (1-3 Yrs)",
-      platform: PlatformSource.ASHBY,
-      url: "https://jobs.ashbyhq.com/supabase/jobs/502",
-      rawDescription: "Developing Postgres real-time sync, TypeScript React interfaces, and low-latency storage APIs.",
-    },
-    {
-      company: "ANYSPHERE (CURSOR AI)",
-      title: "AI & Software Tools Developer - Remote Internship",
-      category: "AI / ML Engineer",
-      jobType: "Remote Internship",
-      experienceLevel: "Fresher / Entry Level (0-1 Yr)",
-      platform: PlatformSource.YC_JOBS,
-      url: "https://www.ycombinator.com/companies/anysphere/jobs/503",
-      rawDescription: "Building AI-assisted code editor sandboxes, Monaco editor integration, and LLM context window optimization.",
-    },
-    {
-      company: "ANTHROPIC",
-      title: "Python Backend Developer - Remote Internship",
-      category: "Python Developer",
-      jobType: "Remote Internship",
-      experienceLevel: "Fresher / Entry Level (0-1 Yr)",
-      platform: PlatformSource.LEVER,
-      url: "https://jobs.lever.co/anthropic/504",
-      rawDescription: "Developing Python FastAPI microservices, evaluation harness pipelines, and async task queues using Celery and Redis.",
-    },
-    {
-      company: "GITLAB",
-      title: "Web Developer - Frontend React / TypeScript (Remote)",
-      category: "Web Developer",
-      jobType: "Remote Full-Time",
-      experienceLevel: "Junior (1-3 Yrs)",
-      platform: PlatformSource.GREENHOUSE,
-      url: "https://boards.greenhouse.io/gitlab/jobs/505",
-      rawDescription: "Building responsive Web UI components, GraphQL queries, and accessible design tokens for global developer teams.",
-    },
-  ];
+  // 3. Ingest REAL Live Remote Postings from Greenhouse & Lever APIs
+  const realJobs = [];
+  for (const company of TARGET_GREENHOUSE_COMPANIES) {
+    const scraped = await scrapeGreenhouseCompany(company);
+    realJobs.push(...scraped);
+  }
+  for (const company of TARGET_LEVER_COMPANIES) {
+    const scraped = await scrapeLeverCompany(company);
+    realJobs.push(...scraped);
+  }
 
-  for (const j of sampleJobs) {
+  let insertedCount = 0;
+  for (const j of realJobs) {
     await db.jobPosting.create({
       data: {
-        urlHash: makeHash(j.url),
+        urlHash: j.urlHash,
         url: j.url,
         company: j.company,
         title: j.title,
@@ -256,16 +213,17 @@ async function main() {
         jobType: j.jobType,
         experienceLevel: j.experienceLevel,
         platform: j.platform,
-        location: "100% Remote",
-        isRemote: true,
-        applicantCount: Math.floor(Math.random() * 8) + 2,
-        postedAt: new Date(),
+        location: j.location,
+        isRemote: j.isRemote,
+        applicantCount: j.applicantCount,
+        postedAt: j.postedAt,
         rawDescription: j.rawDescription,
       },
     });
+    insertedCount++;
   }
 
-  console.log(`Successfully seeded profiles & remote jobs:\n - Roushan (ID: ${roushan.id})\n - Ayushi (ID: ${ayushi.id})\n - Sample Remote Jobs: ${sampleJobs.length}`);
+  console.log(`Successfully seeded profiles & ingested REAL live jobs:\n - Roushan (ID: ${roushan.id})\n - Ayushi (ID: ${ayushi.id})\n - Real Live Scraped Postings: ${insertedCount}`);
 }
 
 main()

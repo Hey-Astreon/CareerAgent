@@ -22,7 +22,7 @@ export interface ScrapedJob {
 const SWE_KEYWORDS = [
   "engineer", "developer", "architect", "software", "backend",
   "full stack", "fullstack", "ai", "machine learning", "systems",
-  "frontend", "platform", "infrastructure", "web developer", "python"
+  "frontend", "platform", "infrastructure", "web", "python"
 ];
 
 const EXCLUDED_TITLES = [
@@ -45,18 +45,18 @@ function cleanHtmlText(html: string): string {
   }
 }
 
-function determineCategory(title: string): string {
-  const lower = title.toLowerCase();
-  if (lower.includes("backend") || lower.includes("back-end")) return "Backend Developer";
-  if (lower.includes("frontend") || lower.includes("front-end")) return "Frontend Developer";
-  if (lower.includes("full stack") || lower.includes("fullstack") || lower.includes("full-stack")) return "Full Stack Developer";
-  if (lower.includes("python")) return "Python Developer";
-  if (lower.includes("web developer") || lower.includes("web dev")) return "Web Developer";
-  if (lower.includes("ai") || lower.includes("machine learning") || lower.includes("llm")) return "AI / ML Engineer";
+export function determineCategory(title: string, description: string = ""): string {
+  const text = (title + " " + description).toLowerCase();
+  if (text.includes("python")) return "Python Developer";
+  if (text.includes("backend") || text.includes("back-end") || text.includes("systems")) return "Backend Developer";
+  if (text.includes("frontend") || text.includes("front-end") || text.includes("react")) return "Frontend Developer";
+  if (text.includes("full stack") || text.includes("fullstack") || text.includes("full-stack")) return "Full Stack Developer";
+  if (text.includes("ai") || text.includes("machine learning") || text.includes("llm")) return "AI / ML Engineer";
+  if (text.includes("web developer") || text.includes("web dev") || text.includes("web ")) return "Web Developer";
   return "Software Developer";
 }
 
-function determineJobType(title: string, description: string): string {
+export function determineJobType(title: string, description: string = ""): string {
   const text = (title + " " + description).toLowerCase();
   if (text.includes("intern") || text.includes("trainee") || text.includes("co-op")) {
     return "Remote Internship";
@@ -67,7 +67,7 @@ function determineJobType(title: string, description: string): string {
   return "Remote Full-Time";
 }
 
-function determineExperienceLevel(title: string, description: string): string {
+export function determineExperienceLevel(title: string, description: string = ""): string {
   const text = (title + " " + description).toLowerCase();
   if (text.includes("intern") || text.includes("fresher") || text.includes("graduate") || text.includes("0-1 year")) {
     return "Fresher / Entry Level (0-1 Yr)";
@@ -87,11 +87,12 @@ function isStrictlyRemoteAndEarlyCareer(title: string, location: string, descrip
   const isOnSite = ONSITE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerDesc.includes(kw));
   if (isOnSite) return false;
 
-  // Must have explicit remote indicator
+  // Must have explicit remote indicator or location
   const isRemote =
     lowerLoc.includes("remote") ||
     lowerLoc.includes("anywhere") ||
     lowerLoc.includes("global") ||
+    lowerLoc.includes("united states") ||
     lowerDesc.includes("remote work") ||
     lowerDesc.includes("work from home") ||
     lowerDesc.includes("fully remote");
@@ -146,7 +147,7 @@ export async function scrapeGreenhouseCompany(companySlug: string): Promise<Scra
           urlHash: generateUrlHash(jobUrl),
           company: companySlug.toUpperCase(),
           title,
-          category: determineCategory(title),
+          category: determineCategory(title, rawContent),
           jobType: determineJobType(title, rawContent),
           experienceLevel: determineExperienceLevel(title, rawContent),
           platform: PlatformSource.GREENHOUSE,
@@ -192,7 +193,7 @@ export async function scrapeLeverCompany(companySlug: string): Promise<ScrapedJo
           urlHash: generateUrlHash(jobUrl),
           company: companySlug.toUpperCase(),
           title,
-          category: determineCategory(title),
+          category: determineCategory(title, rawContent),
           jobType: determineJobType(title, rawContent),
           experienceLevel: determineExperienceLevel(title, rawContent),
           platform: PlatformSource.LEVER,

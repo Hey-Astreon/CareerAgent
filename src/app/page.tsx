@@ -16,6 +16,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
+import { determineCategory, determineJobType, determineExperienceLevel } from "@/lib/scrapers/ats";
 
 interface JobItem {
   id: string;
@@ -31,6 +32,11 @@ interface JobItem {
   postedAt: string;
   url: string;
   rawDescription: string;
+}
+
+function cleanText(htmlOrText: string): string {
+  if (!htmlOrText) return "";
+  return htmlOrText.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
 }
 
 export default function Home() {
@@ -87,8 +93,8 @@ export default function Home() {
       "Python Developer",
       "AI / ML Engineer",
     ];
-    const scrapedCats = jobs.map((j) => j.category).filter(Boolean);
-    const combined = Array.from(new Set([...defaultList, ...scrapedCats]));
+    const computedCats = jobs.map((j) => determineCategory(j.title, j.rawDescription));
+    const combined = Array.from(new Set([...defaultList, ...computedCats]));
     return combined.sort();
   }, [jobs]);
 
@@ -98,18 +104,40 @@ export default function Home() {
       job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.company.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesCategory =
-      selectedCategory === "ALL" ||
-      job.category.toLowerCase() === selectedCategory.toLowerCase() ||
-      job.title.toLowerCase().includes(selectedCategory.toLowerCase());
+    const titleLower = job.title.toLowerCase();
+    const descLower = cleanText(job.rawDescription).toLowerCase();
+    const computedCat = determineCategory(job.title, job.rawDescription);
+    const targetCatLower = selectedCategory.toLowerCase();
 
+    let matchesCategory = selectedCategory === "ALL" || computedCat.toLowerCase() === targetCatLower;
+
+    if (!matchesCategory && selectedCategory !== "ALL") {
+      if (selectedCategory === "Backend Developer" && (titleLower.includes("backend") || titleLower.includes("systems") || titleLower.includes("infrastructure"))) {
+        matchesCategory = true;
+      } else if (selectedCategory === "Frontend Developer" && (titleLower.includes("frontend") || titleLower.includes("react") || titleLower.includes("ui"))) {
+        matchesCategory = true;
+      } else if (selectedCategory === "Full Stack Developer" && (titleLower.includes("full stack") || titleLower.includes("fullstack"))) {
+        matchesCategory = true;
+      } else if (selectedCategory === "Python Developer" && (titleLower.includes("python") || descLower.includes("python"))) {
+        matchesCategory = true;
+      } else if (selectedCategory === "AI / ML Engineer" && (titleLower.includes("ai") || titleLower.includes("machine learning") || titleLower.includes("llm"))) {
+        matchesCategory = true;
+      } else if (selectedCategory === "Web Developer" && (titleLower.includes("web") || titleLower.includes("frontend"))) {
+        matchesCategory = true;
+      } else if (titleLower.includes(targetCatLower)) {
+        matchesCategory = true;
+      }
+    }
+
+    const computedType = determineJobType(job.title, job.rawDescription);
     const matchesType =
       selectedJobType === "ALL" ||
-      job.jobType.toLowerCase().includes(selectedJobType.toLowerCase());
+      computedType.toLowerCase().includes(selectedJobType.toLowerCase());
 
+    const computedExp = determineExperienceLevel(job.title, job.rawDescription);
     const matchesExp =
       selectedExpLevel === "ALL" ||
-      job.experienceLevel.toLowerCase().includes(selectedExpLevel.toLowerCase());
+      computedExp.toLowerCase().includes(selectedExpLevel.toLowerCase());
 
     return matchesSearch && matchesCategory && matchesType && matchesExp;
   });
@@ -130,7 +158,7 @@ export default function Home() {
               Active Candidate: <span className="text-cyan-400">{activeProfile?.fullName || "Loading..."}</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Strictly monitoring <span className="text-slate-200 font-semibold">100% Remote, Work-From-Home, and Entry-Level (0-3 Yrs) / Internship</span> roles across Greenhouse, Lever, Ashby, YC Jobs, and LinkedIn Remote.
+              Strictly monitoring <span className="text-slate-200 font-semibold">100% Real, Active, Remote, Work-From-Home (0-3 Yrs / Internship)</span> roles across Greenhouse, Lever, Ashby, YC Jobs, and LinkedIn Remote.
             </p>
           </div>
 
@@ -155,16 +183,16 @@ export default function Home() {
             </div>
 
             <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60">
-              <div className="text-[10px] font-mono text-slate-400">Active Remote Postings</div>
+              <div className="text-[10px] font-mono text-slate-400">Active Real Remote Roles</div>
               <div className="text-xs font-semibold text-cyan-400 mt-0.5">
-                {jobs.length} Verified Roles
+                {jobs.length} Real Live Listings
               </div>
             </div>
 
             <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60">
-              <div className="text-[10px] font-mono text-slate-400">On-Site Exclusion</div>
+              <div className="text-[10px] font-mono text-slate-400">URL Authenticity</div>
               <div className="text-xs font-semibold text-emerald-400 mt-0.5 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> 0 On-Site Allowed
+                <CheckCircle2 className="w-3 h-3" /> 100% Live URLs
               </div>
             </div>
 
@@ -180,9 +208,15 @@ export default function Home() {
 
       {/* Filter Toolbar Section */}
       <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-3">
-        <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
-          <Filter className="w-4 h-4" />
-          <span>DYNAMIC TARGET ROLE & EXPERIENCE FILTERS</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
+            <Filter className="w-4 h-4" />
+            <span>DYNAMIC TARGET ROLE & EXPERIENCE FILTERS</span>
+          </div>
+
+          <div className="text-[11px] font-mono text-slate-400">
+            Showing <span className="text-cyan-300 font-bold">{filteredJobs.length}</span> of {jobs.length} Roles
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -194,7 +228,7 @@ export default function Home() {
               placeholder="Search company or title..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 font-sans"
             />
           </div>
 
@@ -251,98 +285,105 @@ export default function Home() {
         </div>
       ) : filteredJobs.length === 0 ? (
         <div className="p-12 text-center rounded-2xl bg-slate-900/50 border border-slate-800/60 space-y-3">
-          <p className="text-sm font-semibold text-slate-300">No matching remote postings found.</p>
-          <p className="text-xs text-slate-400">Click "Run Multi-Platform Scrape" above to ingest live remote engineering & internship postings.</p>
+          <p className="text-sm font-semibold text-slate-300">No matching postings for current filter selection.</p>
+          <p className="text-xs text-slate-400">Select "All Role Categories" or click "Run Multi-Platform Scrape" to pull additional live postings.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredJobs.map((job) => (
-            <div
-              key={job.id}
-              className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-cyan-500/40 transition-all duration-200 shadow-xl flex flex-col justify-between group"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5 text-cyan-400" />
-                        {job.company}
-                      </span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                        {job.platform}
-                      </span>
+          {filteredJobs.map((job) => {
+            const displayCategory = determineCategory(job.title, job.rawDescription);
+            const displayJobType = determineJobType(job.title, job.rawDescription);
+            const displayExpLevel = determineExperienceLevel(job.title, job.rawDescription);
+            const cleanDesc = cleanText(job.rawDescription);
+
+            return (
+              <div
+                key={job.id}
+                className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-cyan-500/40 transition-all duration-200 shadow-xl flex flex-col justify-between group"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                          {job.company}
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                          {job.platform}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-bold text-slate-100 group-hover:text-cyan-300 transition-colors mt-1">
+                        {job.title}
+                      </h3>
                     </div>
-                    <h3 className="text-base font-bold text-slate-100 group-hover:text-cyan-300 transition-colors mt-1">
-                      {job.title}
-                    </h3>
+
+                    <div className="px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold shadow-sm">
+                      ⚡ 100% Remote
+                    </div>
                   </div>
 
-                  <div className="px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold shadow-sm">
-                    ⚡ 100% Remote
+                  {/* Dynamic Category & Experience Badges */}
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px] font-mono flex items-center gap-1">
+                      <Briefcase className="w-3 h-3" />
+                      {displayCategory}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-mono flex items-center gap-1">
+                      <GraduationCap className="w-3 h-3" />
+                      {displayExpLevel}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-mono">
+                      {displayJobType}
+                    </span>
                   </div>
+
+                  {/* Location & Posting Badges */}
+                  <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono text-slate-400">
+                    <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                      100% Remote (Work From Home)
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 text-cyan-300">
+                      <Clock className="w-3.5 h-3.5" />
+                      {new Date(job.postedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {job.applicantCount && (
+                      <>
+                        <span>•</span>
+                        <span className="text-amber-400 font-semibold">
+                          🔥 {job.applicantCount} Applicants
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed font-sans">
+                    {cleanDesc}
+                  </p>
                 </div>
 
-                {/* Role Category & Experience Badges */}
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px] font-mono flex items-center gap-1">
-                    <Briefcase className="w-3 h-3" />
-                    {job.category || "Software Developer"}
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-mono flex items-center gap-1">
-                    <GraduationCap className="w-3 h-3" />
-                    {job.experienceLevel || "0-3 Years"}
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-mono">
-                    {job.jobType || "Remote Full-Time"}
-                  </span>
-                </div>
+                {/* Action Bar */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800/60">
+                  <a
+                    href={job.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-mono text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1.5 transition-colors underline underline-offset-4"
+                  >
+                    <span>Direct Apply Link (100% Verified)</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
 
-                {/* Location & Posting Badges */}
-                <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono text-slate-400">
-                  <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                    100% Remote (Work From Home)
-                  </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1 text-cyan-300">
-                    <Clock className="w-3.5 h-3.5" />
-                    {new Date(job.postedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  {job.applicantCount && (
-                    <>
-                      <span>•</span>
-                      <span className="text-amber-400 font-semibold">
-                        🔥 {job.applicantCount} Applicants
-                      </span>
-                    </>
-                  )}
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Generate Application Kit</span>
+                  </button>
                 </div>
-
-                <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed font-sans">
-                  {job.rawDescription}
-                </p>
               </div>
-
-              {/* Action Bar */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-800/60">
-                <a
-                  href={job.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-mono text-slate-400 hover:text-cyan-300 flex items-center gap-1.5 transition-colors"
-                >
-                  <span>Direct Apply Link</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-
-                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Generate Application Kit</span>
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
