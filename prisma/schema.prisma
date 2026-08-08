@@ -17,6 +17,21 @@ enum ApplicationStatus {
   QUIET
 }
 
+enum VerificationStatus {
+  UNVERIFIED
+  VERIFIED_DIRECT_ATS
+  VERIFIED_AGGREGATOR
+  COMMUNITY_SUBMITTED
+  FLAGGED_STALE
+}
+
+enum SyncStatus {
+  HEALTHY
+  DEGRADED
+  FAILING
+  DISABLED
+}
+
 enum PlatformSource {
   LINKEDIN
   WELLFOUND
@@ -28,11 +43,35 @@ enum PlatformSource {
   MICRO1
   ALIGNER
   DIRECT_PORTAL
+  HIMALAYAS
+  REMOTIVE
+  HN_HIRING
+  WORKABLE
+  SMARTRECRUITERS
+  RECRUITEE
+}
+
+model ProviderSyncState {
+  id                   String     @id @default(uuid())
+  providerKey          String     @unique
+  status               SyncStatus @default(HEALTHY)
+  lastSyncAttemptAt    DateTime?
+  lastSuccessfulSyncAt DateTime?
+  lastFailedSyncAt     DateTime?
+  consecutiveFailures  Int        @default(0)
+  lastError            String?
+  totalJobsSeen        Int        @default(0)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  occurrences JobOccurrence[]
+
+  @@map("provider_sync_states")
 }
 
 model Profile {
   id               String              @id @default(uuid())
-  slug             String              @unique // "roushan" or "ayushi"
+  slug             String              @unique
   fullName         String
   title            String
   email            String
@@ -45,10 +84,10 @@ model Profile {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
-  projects         Project[]
-  virtualExps      VirtualExperience[]
-  applications     Application[]
-  matchScores      MatchScore[]
+  projects     Project[]
+  virtualExps  VirtualExperience[]
+  applications Application[]
+  matchScores  MatchScore[]
 
   @@map("profiles")
 }
@@ -61,7 +100,7 @@ model Project {
   liveDemoUrl  String?
   githubUrl    String?
   architecture String
-  bulletPoints String // JSON string
+  bulletPoints String
   createdAt    DateTime @default(now())
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -87,7 +126,7 @@ model VirtualExperience {
 
 model JobPosting {
   id              String         @id @default(uuid())
-  urlHash         String         @unique // SHA256 hash of URL for deduplication
+  urlHash         String         @unique
   url             String
   company         String
   title           String
@@ -100,6 +139,9 @@ model JobPosting {
   applicantCount  Int?
   postedAt        DateTime
   rawDescription  String
+  lastSeenAt      DateTime       @default(now())
+  isExpired       Boolean        @default(false)
+  hasFullText     Boolean        @default(true)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -109,30 +151,96 @@ model JobPosting {
   @@index([postedAt])
   @@index([isRemote])
   @@index([category])
+  @@index([lastSeenAt])
+  @@index([isExpired])
   @@map("job_postings")
+}
+
+model Opportunity {
+  id              String   @id @default(uuid())
+  company         String
+  companySlug     String
+  title           String
+  category        String   @default("Software Developer")
+  jobType         String   @default("Remote Full-Time")
+  experienceLevel String   @default("0-3 Years (Entry/Junior)")
+  location        String
+  isRemote        Boolean  @default(true)
+  remoteRegion    String?
+  canonicalAppUrl String
+  technologies    String   @default("[]")
+  rawDescription  String
+  hasFullText     Boolean  @default(true)
+
+  postedAt        DateTime
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+  isExpired       Boolean  @default(false)
+  expiredAt       DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  occurrences  JobOccurrence[]
+  matchScores  MatchScore[]
+  applications Application[]
+
+  @@index([postedAt])
+  @@index([isRemote])
+  @@index([category])
+  @@index([isExpired])
+  @@index([companySlug, title])
+  @@map("opportunities")
+}
+
+model JobOccurrence {
+  id                 String             @id @default(uuid())
+  opportunityId     String
+  providerKey        String
+  sourceJobId        String?
+  discoveryUrl       String
+  applicationUrl     String
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  rawLocation        String?
+  postedAt           DateTime
+  firstSeenAt        DateTime           @default(now())
+  lastSeenAt         DateTime           @default(now())
+  metadata           String?
+
+  opportunity  Opportunity       @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  providerSync ProviderSyncState @relation(fields: [providerKey], references: [providerKey], onDelete: Cascade)
+
+  @@unique([providerKey, sourceJobId])
+  @@index([opportunityId])
+  @@index([providerKey])
+  @@map("job_occurrences")
 }
 
 model MatchScore {
   id            String   @id @default(uuid())
   profileId     String
-  jobPostingId  String
-  score         Int // 0 to 100
-  hardSkills    String // JSON string array
-  missingSkills String // JSON string array
+  jobPostingId  String?
+  opportunityId String?
+  score         Int
+  hardSkills    String
+  missingSkills String
   reasoning     String
   evaluatedAt   DateTime @default(now())
 
-  profile    Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  profile     Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobPosting  JobPosting?  @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, jobPostingId])
+  @@unique([profileId, opportunityId])
   @@map("match_scores")
 }
 
 model Application {
   id                     String            @id @default(uuid())
   profileId              String
-  jobPostingId           String
+  jobPostingId           String?
+  opportunityId         String?
   status                 ApplicationStatus @default(DISCOVERED)
   tailoredCvPath         String?
   tailoredCoverLetter    String?
@@ -143,8 +251,9 @@ model Application {
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
 
-  profile        Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  jobPosting     JobPosting      @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  profile     Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobPosting  JobPosting?  @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
 
   @@index([profileId, status])
   @@map("applications")

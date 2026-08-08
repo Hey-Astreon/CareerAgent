@@ -133,12 +133,14 @@ export default function Home() {
 
   const platformCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      LINKEDIN: 0,
-      WELLFOUND: 0,
       GREENHOUSE: 0,
-      ASHBY: 0,
       LEVER: 0,
+      ASHBY: 0,
+      HIMALAYAS: 0,
+      REMOTIVE: 0,
+      LINKEDIN: 0,
       YC_JOBS: 0,
+      WELLFOUND: 0,
     };
     for (const j of jobs) {
       const p = j.platform?.toUpperCase();
@@ -256,12 +258,14 @@ export default function Home() {
           <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mr-1">Platform:</span>
           {[
             { id: "ALL", label: `All (${jobs.length})` },
-            { id: "LINKEDIN", label: `LinkedIn (${platformCounts.LINKEDIN || 0})` },
-            { id: "WELLFOUND", label: `Wellfound (${platformCounts.WELLFOUND || 0})` },
             { id: "GREENHOUSE", label: `Greenhouse (${platformCounts.GREENHOUSE || 0})` },
-            { id: "ASHBY", label: `Ashby (${platformCounts.ASHBY || 0})` },
             { id: "LEVER", label: `Lever (${platformCounts.LEVER || 0})` },
+            { id: "ASHBY", label: `Ashby (${platformCounts.ASHBY || 0})` },
+            { id: "HIMALAYAS", label: `Himalayas (${platformCounts.HIMALAYAS || 0})` },
+            { id: "REMOTIVE", label: `Remotive (${platformCounts.REMOTIVE || 0})` },
+            { id: "LINKEDIN", label: `LinkedIn (${platformCounts.LINKEDIN || 0})` },
             { id: "YC_JOBS", label: `YC Jobs (${platformCounts.YC_JOBS || 0})` },
+            { id: "WELLFOUND", label: `Wellfound (${platformCounts.WELLFOUND || 0})` },
           ].map((plat) => (
             <button
               key={plat.id}

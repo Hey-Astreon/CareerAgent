@@ -24,13 +24,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const draft = `Subject: Following up regarding ${application.jobPosting.title} position - ${application.profile.fullName}
+    const company = application.jobPosting?.company || "Company";
+    const title = application.jobPosting?.title || "Software Engineer";
 
-Dear Hiring Team at ${application.jobPosting.company},
+    const draft = `Subject: Following up regarding ${title} position - ${application.profile.fullName}
+
+Dear Hiring Team at ${company},
 
 I hope this email finds you well.
 
-I am writing to express my continued enthusiasm for the ${application.jobPosting.title} role. I submitted my application recently and remain very interested in contributing to ${application.jobPosting.company}'s engineering initiatives.
+I am writing to express my continued enthusiasm for the ${title} role. I submitted my application recently and remain very interested in contributing to ${company}'s engineering initiatives.
 
 Given my background in building low-latency REST APIs, concurrent microservices, and zero-knowledge cryptographic architectures, I would welcome the opportunity to discuss how my skill set aligns with your team's goals.
 
@@ -45,8 +48,8 @@ ${application.profile.portfolioUrl || ""}`;
     return NextResponse.json({
       success: true,
       followupDraft: draft,
-      company: application.jobPosting.company,
-      title: application.jobPosting.title,
+      company,
+      title,
     });
   } catch (error) {
     console.error("Follow-up draft generation API error:", error);

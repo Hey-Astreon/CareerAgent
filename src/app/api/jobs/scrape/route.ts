@@ -1,42 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { scrapeGreenhouseCompany, scrapeLeverCompany, ScrapedJob } from "@/lib/scrapers/ats";
-import { scrapeAshbyCompany } from "@/lib/scrapers/ashby";
-import { scrapeLinkedInRemoteJobs } from "@/lib/scrapers/linkedin";
-import { scrapeYCJobs } from "@/lib/scrapers/playwright";
-import { scrapeWellfoundRemoteJobs } from "@/lib/scrapers/wellfound";
+import { runAllProviders, ingestNormalizedJobs } from "@/lib/providers/registry";
 
-const TARGET_GREENHOUSE_COMPANIES = [
-  "vercel",
-  "stripe",
-  "gitlab",
-  "discord",
-  "cloudflare",
-  "coinbase",
-  "doordash",
-  "hashicorp",
-  "automattic",
-  "elastic",
-  "reddit",
-  "airtable",
-  "webflow",
-  "sourcegraph",
-  "zapier",
-  "docker",
-  "datadog",
-  "sentry",
-  "cockroachlabs",
-  "databricks",
-  "mongodb",
-];
-
-const TARGET_LEVER_COMPANIES = ["scaleai", "brex"];
-const TARGET_ASHBY_COMPANIES = ["linear", "supabase", "ramp"];
-
-/**
- * Interleaves jobs from different platforms (LinkedIn, Ashby, Greenhouse, Lever, YC)
- * in round-robin fashion so candidates see a rich mix on page load rather than 50 Greenhouse jobs in a row.
- */
 function interleavePlatforms<T extends { platform: string }>(jobsList: T[]): T[] {
   const groups: Record<string, T[]> = {};
   for (const item of jobsList) {
@@ -66,73 +31,16 @@ function interleavePlatforms<T extends { platform: string }>(jobsList: T[]): T[]
 
 export async function POST() {
   try {
-    const allScraped: ScrapedJob[] = [];
+    console.log("[Discovery Engine Phase 1] Running provider registry concurrently...");
+    
+    // Execute all providers with bounded timeouts & failure isolation
+    const { providerResults, allJobs, totalDiscovered, totalRejected } = await runAllProviders();
 
-    // 1. Run LinkedIn Remote Jobs scraper (Real Live LinkedIn Postings)
-    console.log("Ingesting LinkedIn Remote Jobs...");
-    const linkedinJobs = await scrapeLinkedInRemoteJobs();
-    allScraped.push(...linkedinJobs);
-
-    // 2. Run Greenhouse scrapers
-    console.log("Ingesting Greenhouse Company Boards...");
-    for (const company of TARGET_GREENHOUSE_COMPANIES) {
-      const companyJobs = await scrapeGreenhouseCompany(company);
-      allScraped.push(...companyJobs);
-    }
-
-    // 3. Run Lever scrapers
-    console.log("Ingesting Lever Company Boards...");
-    for (const company of TARGET_LEVER_COMPANIES) {
-      const companyJobs = await scrapeLeverCompany(company);
-      allScraped.push(...companyJobs);
-    }
-
-    // 4. Run Ashby scrapers
-    console.log("Ingesting Ashby Company Boards...");
-    for (const company of TARGET_ASHBY_COMPANIES) {
-      const companyJobs = await scrapeAshbyCompany(company);
-      allScraped.push(...companyJobs);
-    }
-
-    // 5. Run YC Playwright scraper
-    console.log("Ingesting YC Remote Jobs...");
-    const ycJobs = await scrapeYCJobs();
-    allScraped.push(...ycJobs);
-
-    // 6. Run Wellfound scraper
-    console.log("Ingesting Wellfound Remote Jobs...");
-    const wellfoundJobs = await scrapeWellfoundRemoteJobs();
-    allScraped.push(...wellfoundJobs);
-
-    let insertedCount = 0;
-
-    for (const job of allScraped) {
-      const existing = await db.jobPosting.findUnique({
-        where: { urlHash: job.urlHash },
-      });
-
-      if (!existing) {
-        await db.jobPosting.create({
-          data: {
-            urlHash: job.urlHash,
-            url: job.url,
-            company: job.company,
-            title: job.title,
-            category: job.category || "Software Developer",
-            jobType: job.jobType || "Remote Full-Time",
-            experienceLevel: job.experienceLevel || "0-3 Years (Entry/Junior)",
-            platform: job.platform,
-            location: job.location,
-            isRemote: job.isRemote,
-            postedAt: job.postedAt,
-            rawDescription: job.rawDescription,
-          },
-        });
-        insertedCount++;
-      }
-    }
+    // Dual-ingest into Opportunity/Occurrence and JobPosting
+    const { insertedCount, updatedCount } = await ingestNormalizedJobs(allJobs);
 
     const rawActive = await db.jobPosting.findMany({
+      where: { isExpired: false },
       orderBy: { postedAt: "desc" },
       take: 500,
     });
@@ -141,12 +49,21 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      scrapedTotal: allScraped.length,
+      providerSummary: providerResults.map((p) => ({
+        provider: p.providerKey,
+        success: p.success,
+        durationMs: p.durationMs,
+        discovered: p.jobsDiscovered,
+        error: p.error,
+      })),
+      totalDiscovered,
+      totalRejected,
       newJobsInserted: insertedCount,
+      jobsUpdated: updatedCount,
       jobs: mixedJobs,
     });
   } catch (error) {
-    console.error("Scraper API Error:", error);
+    console.error("Scraper Pipeline Error:", error);
     return NextResponse.json(
       { success: false, error: "Scraping pipeline failed" },
       { status: 500 }
@@ -157,6 +74,7 @@ export async function POST() {
 export async function GET() {
   try {
     const rawActive = await db.jobPosting.findMany({
+      where: { isExpired: false },
       orderBy: { postedAt: "desc" },
       take: 500,
     });

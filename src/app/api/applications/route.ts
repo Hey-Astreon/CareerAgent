@@ -34,8 +34,8 @@ export async function GET(req: Request) {
 
       return {
         id: app.id,
-        company: app.jobPosting.company,
-        title: app.jobPosting.title,
+        company: app.jobPosting?.company || "Direct Portal",
+        title: app.jobPosting?.title || "Software Developer",
         status: currentStatus,
         appliedDate: new Date(baseDate).toLocaleDateString("en-US", {
           month: "short",
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
           year: "numeric",
         }),
         daysSilent,
-        jobUrl: app.jobPosting.url,
+        jobUrl: app.jobPosting?.url || "",
       };
     });
 
