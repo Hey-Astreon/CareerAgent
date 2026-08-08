@@ -36,7 +36,7 @@ const EXCLUDED_TITLES = [
   // Design & Content
   "designer", "ux", "ui designer", "product designer", "graphic designer", "content writer", "copywriter", "seo", "editor",
   // Support, Operations & Admin
-  "customer support", "customer success", "support specialist", "helpdesk", "community manager", "social media", "operations analyst", "human resources", "hr ", "people ops", "office manager", "executive assistant", "admin",
+  "support engineer", "technical support", "customer support", "customer success", "support specialist", "helpdesk", "community manager", "social media", "operations analyst", "human resources", "hr ", "people ops", "office manager", "executive assistant", "admin",
   // Legal, Finance & Executive
   "legal", "counsel", "compliance", "accountant", "financial analyst", "payroll", "director", "vp ", "vice president", "chief ", "cto", "ceo", "cfo", "coo", "head of", "general manager", "solutions architect",
   // Senior field/account roles
