@@ -1,12 +1,5 @@
 import { queryMultiProviderLLM } from "./router";
 
-export interface MatchResult {
-  score: number; // 0 to 100
-  hardSkills: string[];
-  missingSkills: string[];
-  reasoning: string;
-}
-
 export interface CandidateContext {
   fullName: string;
   title: string;
@@ -20,6 +13,32 @@ export interface CandidateContext {
     roleTitle: string;
     outcome: string;
   }>;
+}
+
+export interface HardEligibilityResult {
+  eligible: boolean;
+  reason?: string;
+}
+
+export interface DeterministicMatchSignals {
+  skillOverlapScore: number;       // 0-100
+  titleCategoryScore: number;      // 0-100
+  recencyScore: number;            // 0-100
+  sourceQualityScore: number;      // 0-100
+  deterministicBaseScore: number; // 0-100
+}
+
+export interface CompositeMatchResult {
+  finalScore: number;
+  eligible: boolean;
+  rejectionReason?: string;
+  deterministicSignals: DeterministicMatchSignals;
+  hardSkills: string[];
+  missingSkills: string[];
+  reasoning: string;
+  version: string; // "v2.0-deterministic-ai"
+  aiCallsCount: number;
+  cached: boolean;
 }
 
 const NON_DEV_KEYWORDS = [
@@ -42,7 +61,7 @@ const TECH_DICTIONARY = [
   "prometheus", "grafana", "tailwind", "css", "html", "webassembly", "llm", "ai", "machine learning", "vector search"
 ];
 
-function extractSkills(text: string): string[] {
+export function extractSkills(text: string): string[] {
   const lower = text.toLowerCase();
   const found: string[] = [];
 
@@ -127,23 +146,160 @@ function extractSkills(text: string): string[] {
   return Array.from(new Set(found));
 }
 
-/**
- * Evaluates candidate technical fit against a job description using 100% pure empirical skill overlap.
- * Zero artificial floors, zero fake fallbacks.
- */
-export async function evaluateJobMatch(
+// -----------------------------------------------------------------------------
+// LAYER 1 — DETERMINISTIC HARD ELIGIBILITY
+// -----------------------------------------------------------------------------
+export function evaluateHardEligibility(
   candidate: CandidateContext,
   jobTitle: string,
-  jobDescription: string
-): Promise<MatchResult> {
+  jobDescription: string,
+  jobLocation: string = "",
+  canonicalAppUrl: string = "http://valid.url"
+): HardEligibilityResult {
+  // 1. Valid Direct Application URL check
+  if (!canonicalAppUrl || !canonicalAppUrl.startsWith("http")) {
+    return { eligible: false, reason: "Ineligible: Missing valid direct application URL." };
+  }
+
+  // 2. Non-developer operational role check
   if (isSupportOrNonDevRole(jobTitle)) {
+    return { eligible: false, reason: `Ineligible: "${jobTitle}" is an operational support or sales role.` };
+  }
+
+  // 3. Obvious Seniority Mismatch (Senior / Staff / Lead / Manager / Principal / Director)
+  const lowerTitle = jobTitle.toLowerCase();
+  if (
+    lowerTitle.includes("senior") ||
+    lowerTitle.includes("sr.") ||
+    /\bsr\b/.test(lowerTitle) ||
+    lowerTitle.includes("staff") ||
+    lowerTitle.includes("principal") ||
+    lowerTitle.includes("tech lead") ||
+    lowerTitle.includes("lead engineer") ||
+    lowerTitle.includes("manager") ||
+    lowerTitle.includes("director")
+  ) {
+    return { eligible: false, reason: "Ineligible: Seniority mismatch (Senior/Staff/Lead role)." };
+  }
+
+  // 4. On-site or non-remote check
+  if (jobLocation) {
+    const lowerLoc = jobLocation.toLowerCase();
+    if (lowerLoc.includes("on-site") || lowerLoc.includes("onsite") || lowerLoc.includes("in-office")) {
+      return { eligible: false, reason: "Ineligible: Location mismatch (On-Site role)." };
+    }
+  }
+
+  return { eligible: true };
+}
+
+// -----------------------------------------------------------------------------
+// LAYER 2 — DETERMINISTIC MATCH SIGNALS
+// -----------------------------------------------------------------------------
+export function calculateDeterministicSignals(
+  candidate: CandidateContext,
+  jobTitle: string,
+  jobDescription: string,
+  postedAt?: Date,
+  providerKey: string = "DIRECT_PORTAL"
+): DeterministicMatchSignals {
+  const candidateFullText = [
+    candidate.title,
+    ...candidate.masterProjects.map((p) => `${p.title} ${p.techStack} ${p.architecture}`),
+    ...candidate.virtualExps.map((e) => `${e.company} ${e.roleTitle} ${e.outcome}`),
+  ].join(" ");
+
+  const candidateSkills = extractSkills(candidateFullText);
+  const jobSkills = extractSkills(jobTitle + " " + jobDescription);
+
+  // 1. Skill Overlap Score (0-100)
+  const matched = jobSkills.filter((s) => candidateSkills.some((cs) => cs.toLowerCase() === s.toLowerCase()));
+  const skillOverlapScore = jobSkills.length > 0 ? Math.round((matched.length / jobSkills.length) * 100) : 50;
+
+  // 2. Title Category Score (0-100)
+  const lowerTitle = jobTitle.toLowerCase();
+  const lowerCandTitle = candidate.title.toLowerCase();
+  let titleCategoryScore = 50;
+
+  if (
+    (lowerTitle.includes("react") && lowerCandTitle.includes("react")) ||
+    (lowerTitle.includes("python") && lowerCandTitle.includes("python")) ||
+    (lowerTitle.includes("backend") && lowerCandTitle.includes("backend")) ||
+    (lowerTitle.includes("frontend") && lowerCandTitle.includes("frontend")) ||
+    (lowerTitle.includes("full stack") && lowerCandTitle.includes("full stack"))
+  ) {
+    titleCategoryScore = 100;
+  } else if (lowerTitle.includes("software") || lowerTitle.includes("engineer") || lowerTitle.includes("developer")) {
+    titleCategoryScore = 80;
+  }
+
+  // 3. Recency Score (0-100)
+  let recencyScore = 100;
+  if (postedAt) {
+    const ageDays = (Date.now() - new Date(postedAt).getTime()) / (1000 * 60 * 60 * 24);
+    if (ageDays <= 1) recencyScore = 100;
+    else if (ageDays <= 3) recencyScore = 85;
+    else if (ageDays <= 7) recencyScore = 70;
+    else if (ageDays <= 14) recencyScore = 50;
+    else recencyScore = 30;
+  }
+
+  // 4. Source Quality Score (0-100)
+  let sourceQualityScore = 80;
+  if (["GREENHOUSE", "LEVER", "ASHBY", "WORKABLE", "SMARTRECRUITERS", "RECRUITEE"].includes(providerKey.toUpperCase())) {
+    sourceQualityScore = 100;
+  } else if (providerKey.toUpperCase() === "HIMALAYAS" || providerKey.toUpperCase() === "REMOTIVE") {
+    sourceQualityScore = 90;
+  }
+
+  // Deterministic Base Score = 50% Skill + 25% Title + 15% Recency + 10% Source Quality
+  const deterministicBaseScore = Math.round(
+    0.5 * skillOverlapScore + 0.25 * titleCategoryScore + 0.15 * recencyScore + 0.1 * sourceQualityScore
+  );
+
+  return {
+    skillOverlapScore,
+    titleCategoryScore,
+    recencyScore,
+    sourceQualityScore,
+    deterministicBaseScore: Math.min(100, Math.max(0, deterministicBaseScore)),
+  };
+}
+
+// -----------------------------------------------------------------------------
+// LAYERS 3 & 4 — AI REASONING & TRANSPARENT COMPOSITE MATCH SCORE
+// -----------------------------------------------------------------------------
+export async function computeCompositeMatchScore(
+  candidate: CandidateContext,
+  jobTitle: string,
+  jobDescription: string,
+  jobLocation: string = "",
+  canonicalAppUrl: string = "http://valid.url",
+  postedAt?: Date,
+  providerKey: string = "DIRECT_PORTAL",
+  enableAiReasoning: boolean = true
+): Promise<CompositeMatchResult> {
+  // LAYER 1: Hard Eligibility Check
+  const hardElig = evaluateHardEligibility(candidate, jobTitle, jobDescription, jobLocation, canonicalAppUrl);
+  
+  if (!hardElig.eligible) {
+    const signals = calculateDeterministicSignals(candidate, jobTitle, jobDescription, postedAt, providerKey);
     return {
-      score: 15,
+      finalScore: 0, // Capped at 0 for hard ineligible roles!
+      eligible: false,
+      rejectionReason: hardElig.reason,
+      deterministicSignals: signals,
       hardSkills: [],
-      missingSkills: ["Core Backend Engineering", "Systems Architecture"],
-      reasoning: `Domain Mismatch: Role "${jobTitle}" is an operational support role rather than a software engineering role.`,
+      missingSkills: ["Domain Eligibility"],
+      reasoning: hardElig.reason || "Role failed hard eligibility constraints.",
+      version: "v2.0-deterministic-ai",
+      aiCallsCount: 0,
+      cached: false,
     };
   }
+
+  // LAYER 2: Deterministic Match Signals
+  const signals = calculateDeterministicSignals(candidate, jobTitle, jobDescription, postedAt, providerKey);
 
   const candidateFullText = [
     candidate.title,
@@ -152,19 +308,25 @@ export async function evaluateJobMatch(
   ].join(" ");
 
   const candidateSkills = extractSkills(candidateFullText);
-  const jobRequiredSkills = extractSkills(jobTitle + " " + jobDescription);
+  const jobSkills = extractSkills(jobTitle + " " + jobDescription);
 
-  const hardSkills = jobRequiredSkills.filter((skill) =>
+  const hardSkills = jobSkills.filter((skill) =>
     candidateSkills.some((cs) => cs.toLowerCase() === skill.toLowerCase())
   );
-
-  const missingSkills = jobRequiredSkills.filter(
+  const missingSkills = jobSkills.filter(
     (skill) => !candidateSkills.some((cs) => cs.toLowerCase() === skill.toLowerCase())
   );
 
-  const systemPrompt = `You are a Staff Software Architect evaluating technical fit for a job posting. Return strictly valid JSON: {"score": 85, "hardSkills": ["Python", "FastAPI"], "missingSkills": ["Kubernetes"], "reasoning": "Candidate demonstrates strong backend skills matching the job requirements."}`;
+  let aiCallsCount = 0;
+  let aiSimilarityScore = signals.deterministicBaseScore;
+  let reasoningText = `${candidate.fullName} matches ${hardSkills.length} out of ${jobSkills.length || 1} required technical skills for ${jobTitle}.`;
 
-  const userPrompt = `
+  // LAYER 3: AI Reasoning (Only executed if enableAiReasoning is true)
+  if (enableAiReasoning) {
+    aiCallsCount = 1;
+    const systemPrompt = `You are a Staff Software Architect evaluating technical fit for a job posting. Return strictly valid JSON: {"score": 85, "hardSkills": ["Python", "FastAPI"], "missingSkills": ["Kubernetes"], "reasoning": "Candidate demonstrates strong backend skills matching the job requirements."}`;
+
+    const userPrompt = `
 CANDIDATE PROFILE:
 Name: ${candidate.fullName}
 Title: ${candidate.title}
@@ -174,44 +336,72 @@ ${candidate.masterProjects.map((p) => `- ${p.title} (${p.techStack}): ${p.archit
 
 JOB POSTING:
 Title: ${jobTitle}
-Required Technologies Detected: ${jobRequiredSkills.join(", ") || "General Software Engineering"}
+Required Technologies Detected: ${jobSkills.join(", ") || "General Software Engineering"}
 Description Snippet: ${jobDescription.slice(0, 800)}
 
 TASK:
 1. Provide an accurate score from 0 to 100 based on technical match.
-2. List 3 to 6 overlapping hard skills present in both candidate stack and job requirements.
-3. List 2 to 5 missing technologies requested in job description that candidate lacks.
+2. List overlapping hard skills present in candidate stack and job requirements.
+3. List missing technologies requested in job description that candidate lacks.
 4. Write a 2-sentence executive technical fit summary.
 `;
 
-  try {
-    const llmRes = await queryMultiProviderLLM(systemPrompt, userPrompt, true);
-    if (llmRes.text) {
-      const parsed = JSON.parse(llmRes.text);
-      const scoreNum = Number(parsed.score);
-      const validatedScore = !isNaN(scoreNum) ? Math.min(100, Math.max(0, scoreNum)) : Math.round((hardSkills.length / (jobRequiredSkills.length || 1)) * 100);
-
-      return {
-        score: validatedScore,
-        hardSkills: Array.isArray(parsed.hardSkills) && parsed.hardSkills.length > 0 ? parsed.hardSkills : hardSkills,
-        missingSkills: Array.isArray(parsed.missingSkills) && parsed.missingSkills.length > 0 ? parsed.missingSkills : missingSkills,
-        reasoning: `${parsed.reasoning || "Technical evaluation completed."} (Engine: ${llmRes.provider.toUpperCase()})`,
-      };
+    try {
+      const llmRes = await queryMultiProviderLLM(systemPrompt, userPrompt, true);
+      if (llmRes.text) {
+        const parsed = JSON.parse(llmRes.text);
+        const scoreNum = Number(parsed.score);
+        if (!isNaN(scoreNum)) {
+          aiSimilarityScore = Math.min(100, Math.max(0, scoreNum));
+        }
+        if (parsed.reasoning) {
+          reasoningText = `${parsed.reasoning} (Engine: ${llmRes.provider.toUpperCase()})`;
+        }
+      }
+    } catch (err) {
+      console.warn("[AI Scorer Warning] Multi-provider query failed, falling back gracefully to deterministic base:", (err as Error).message);
     }
-  } catch (err) {
-    console.warn("[AI Scorer Warning] Multi-provider query failed, utilizing pure empirical matcher:", (err as Error).message);
   }
 
-  // 100% Pure Empirical Calculation: Match ratio = hardSkills / jobRequiredSkills
-  let calculatedScore = 50;
-  if (jobRequiredSkills.length > 0) {
-    calculatedScore = Math.round((hardSkills.length / jobRequiredSkills.length) * 100);
-  }
+  // LAYER 4: Final Transparent Match Score (60% Deterministic Base + 40% AI Similarity)
+  const finalScore = Math.round(0.6 * signals.deterministicBaseScore + 0.4 * aiSimilarityScore);
 
   return {
-    score: Math.min(100, Math.max(0, calculatedScore)),
+    finalScore: Math.min(100, Math.max(0, finalScore)),
+    eligible: true,
+    deterministicSignals: signals,
     hardSkills,
     missingSkills,
-    reasoning: `${candidate.fullName} matches ${hardSkills.length} out of ${jobRequiredSkills.length || 1} required technical skills for ${jobTitle}.`,
+    reasoning: reasoningText,
+    version: "v2.0-deterministic-ai",
+    aiCallsCount,
+    cached: false,
+  };
+}
+
+/**
+ * Legacy compatibility export for existing API calls
+ */
+export async function evaluateJobMatch(
+  candidate: CandidateContext,
+  jobTitle: string,
+  jobDescription: string
+) {
+  const result = await computeCompositeMatchScore(
+    candidate,
+    jobTitle,
+    jobDescription,
+    "",
+    "http://valid.url",
+    undefined,
+    "DIRECT_PORTAL",
+    true
+  );
+
+  return {
+    score: result.finalScore,
+    hardSkills: result.hardSkills,
+    missingSkills: result.missingSkills,
+    reasoning: result.reasoning,
   };
 }

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { evaluateJobMatch } from "@/lib/ai/scorer";
+import { computeCompositeMatchScore } from "@/lib/ai/scorer";
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
   try {
     const { profileSlug, jobPostingId, forceRefresh } = await req.json();
 
@@ -29,27 +30,60 @@ export async function POST(req: Request) {
       );
     }
 
-    // Always run true empirical semantic AI scorer for 100% authentic evaluation
-    const result = await evaluateJobMatch(
-      {
-        fullName: profile.fullName,
-        title: profile.title,
-        masterProjects: profile.projects.map((p) => ({
-          title: p.title,
-          techStack: p.techStack,
-          architecture: p.architecture,
-        })),
-        virtualExps: profile.virtualExps.map((e) => ({
-          company: e.company,
-          roleTitle: e.roleTitle,
-          outcome: e.outcome,
-        })),
-      },
+    // Cache Check: If forceRefresh is false, look up cached match in DB
+    if (!forceRefresh) {
+      const cachedRecord = await db.matchScore.findUnique({
+        where: {
+          profileId_jobPostingId: {
+            profileId: profile.id,
+            jobPostingId: job.id,
+          },
+        },
+      });
+
+      if (cachedRecord) {
+        return NextResponse.json({
+          success: true,
+          matchScore: {
+            score: cachedRecord.score,
+            hardSkills: JSON.parse(cachedRecord.hardSkills || "[]"),
+            missingSkills: JSON.parse(cachedRecord.missingSkills || "[]"),
+            reasoning: cachedRecord.reasoning,
+            cached: true,
+            latencyMs: Date.now() - startTime,
+          },
+        });
+      }
+    }
+
+    // Execute 4-Layer Match Pipeline
+    const candidateContext = {
+      fullName: profile.fullName,
+      title: profile.title,
+      masterProjects: profile.projects.map((p) => ({
+        title: p.title,
+        techStack: p.techStack,
+        architecture: p.architecture,
+      })),
+      virtualExps: profile.virtualExps.map((e) => ({
+        company: e.company,
+        roleTitle: e.roleTitle,
+        outcome: e.outcome,
+      })),
+    };
+
+    const result = await computeCompositeMatchScore(
+      candidateContext,
       job.title,
-      job.rawDescription
+      job.rawDescription,
+      job.location,
+      job.url || "http://valid.url",
+      job.postedAt || undefined,
+      job.platform,
+      true // Enable AI for single job match API
     );
 
-    // Upsert fresh match score record in SQLite
+    // Save/Update match score record in SQLite
     const matchRecord = await db.matchScore.upsert({
       where: {
         profileId_jobPostingId: {
@@ -58,7 +92,7 @@ export async function POST(req: Request) {
         },
       },
       update: {
-        score: result.score,
+        score: result.finalScore,
         hardSkills: JSON.stringify(result.hardSkills),
         missingSkills: JSON.stringify(result.missingSkills),
         reasoning: result.reasoning,
@@ -66,7 +100,7 @@ export async function POST(req: Request) {
       create: {
         profileId: profile.id,
         jobPostingId: job.id,
-        score: result.score,
+        score: result.finalScore,
         hardSkills: JSON.stringify(result.hardSkills),
         missingSkills: JSON.stringify(result.missingSkills),
         reasoning: result.reasoning,
@@ -77,9 +111,16 @@ export async function POST(req: Request) {
       success: true,
       matchScore: {
         score: matchRecord.score,
+        eligible: result.eligible,
+        rejectionReason: result.rejectionReason,
+        deterministicSignals: result.deterministicSignals,
         hardSkills: result.hardSkills,
         missingSkills: result.missingSkills,
         reasoning: result.reasoning,
+        version: result.version,
+        cached: false,
+        aiCallsCount: result.aiCallsCount,
+        latencyMs: Date.now() - startTime,
       },
     });
   } catch (error) {
