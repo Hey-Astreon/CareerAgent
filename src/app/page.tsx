@@ -161,7 +161,9 @@ export default function Home() {
     let matchesCategory = selectedCategory === "ALL" || computedCat.toLowerCase() === targetCatLower;
 
     if (!matchesCategory && selectedCategory !== "ALL") {
-      if (selectedCategory === "Backend Developer" && (titleLower.includes("backend") || titleLower.includes("systems"))) {
+      if (selectedCategory === "React Developer" && (titleLower.includes("react") || descLower.includes("react"))) {
+        matchesCategory = true;
+      } else if (selectedCategory === "Backend Developer" && (titleLower.includes("backend") || titleLower.includes("systems"))) {
         matchesCategory = true;
       } else if (selectedCategory === "Frontend Developer" && (titleLower.includes("frontend") || titleLower.includes("react"))) {
         matchesCategory = true;
@@ -278,6 +280,7 @@ export default function Home() {
           <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mr-1">Role:</span>
           {[
             "ALL",
+            "React Developer",
             "Backend Developer",
             "Frontend Developer",
             "Full Stack Developer",

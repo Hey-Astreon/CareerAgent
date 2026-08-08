@@ -106,6 +106,7 @@ export function determineCategory(title: string, description: string = ""): stri
   const t = title.toLowerCase();
   const d = description.toLowerCase();
 
+  if (t.includes("react")) return "React Developer";
   if (t.includes("python")) return "Python Developer";
   if (t.includes("machine learning") || t.includes("ml engineer") || t.includes("llm") || t.includes("ai engineer")) return "AI / ML Engineer";
   if (t.includes("data engineer") || t.includes("data pipeline")) return "Data Engineer";
@@ -119,10 +120,10 @@ export function determineCategory(title: string, description: string = ""): stri
   if (t.includes("web developer") || t.includes("web dev")) return "Web Developer";
   if (t.includes("mobile") || t.includes("ios") || t.includes("android")) return "Mobile Developer";
 
+  if (d.includes("react") || d.includes("react.js") || d.includes("reactjs")) return "React Developer";
   if (d.includes("python") && !d.includes("javascript")) return "Python Developer";
   if (d.includes("machine learning") || d.includes("llm") || d.includes("neural network")) return "AI / ML Engineer";
   if (d.includes("devops") || d.includes("ci/cd pipelines")) return "DevOps Engineer";
-  if (d.includes("react") || d.includes("vue") || d.includes("angular") || d.includes("css") || d.includes("html")) return "Frontend Developer";
 
   return "Software Developer";
 }
