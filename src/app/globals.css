@@ -1,19 +1,16 @@
 @import "tailwindcss";
 
 @layer base {
-  :root {
-    --bg-dark: #090d16;
-    --card-dark: #111726;
-    --border-dark: #1e293b;
-    --accent-indigo: #6366f1;
-  }
-
   body {
     background-color: #090d16;
     color: #f8fafc;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono), monospace;
   }
 }
 
@@ -36,20 +33,12 @@
   background: #334155;
 }
 
-/* Premium Card Glassmorphism */
-.premium-card {
-  background: rgba(17, 23, 38, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+.card-panel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.premium-card:hover {
-  border-color: rgba(255, 255, 255, 0.14);
-}
-
-.premium-badge {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.card-panel:hover {
+  border-color: #334155;
 }

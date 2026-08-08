@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "CareerAgent | AI Career Operating System",
-  description: "Local-first AI platform for high-velocity remote job discovery and ATS applications.",
+  description: "Enterprise local-first AI platform for high-velocity remote job discovery and ATS applications.",
 };
 
 export default function RootLayout({
@@ -26,11 +26,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} dark h-full`}>
-      <body className="h-full bg-slate-950 text-slate-100 flex flex-col font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+      <body className="h-full bg-[#090D16] text-slate-100 flex flex-col font-sans antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
         <Header />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
-          <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-slate-950 to-slate-900/50">
+          <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-[#090D16]">
             {children}
           </main>
         </div>
