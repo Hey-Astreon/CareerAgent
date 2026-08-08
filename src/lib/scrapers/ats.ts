@@ -229,10 +229,15 @@ export function isStrictlyRemoteDeveloperRole(title: string, location: string = 
   const isCodingRole = SWE_TITLE_KEYWORDS.some((kw) => lowerTitle.includes(kw));
   if (!isCodingRole) return false;
 
-  // 3. Exclude On-Site / Hybrid jobs if location/description is present
-  if (lowerLoc || lowerDesc) {
-    const isOnSite = ONSITE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerDesc.includes(kw));
-    if (isOnSite) return false;
+  // 3. Exclude On-Site / Hybrid jobs or specific city locations lacking remote tags
+  if (lowerLoc) {
+    const isOnSiteKeyword = ONSITE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerDesc.includes(kw));
+    if (isOnSiteKeyword) return false;
+
+    // If location is specified (e.g. "Québec, QC", "Toronto, ON") but lacks any remote keywords, it is ON-SITE!
+    const REMOTE_KEYWORDS = ["remote", "telecommute", "anywhere", "wfh", "work from home", "home-based", "virtual", "work from anywhere"];
+    const hasRemoteKeyword = REMOTE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerTitle.includes(kw) || lowerDesc.includes(kw));
+    if (!hasRemoteKeyword) return false;
   }
 
   // 4. Exclude Senior / Staff / Principal / Lead by TITLE
