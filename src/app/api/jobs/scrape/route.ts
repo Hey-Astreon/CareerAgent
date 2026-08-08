@@ -4,6 +4,7 @@ import { scrapeGreenhouseCompany, scrapeLeverCompany, ScrapedJob } from "@/lib/s
 import { scrapeAshbyCompany } from "@/lib/scrapers/ashby";
 import { scrapeLinkedInRemoteJobs } from "@/lib/scrapers/linkedin";
 import { scrapeYCJobs } from "@/lib/scrapers/playwright";
+import { scrapeWellfoundRemoteJobs } from "@/lib/scrapers/wellfound";
 
 const TARGET_GREENHOUSE_COMPANIES = [
   "vercel",
@@ -97,6 +98,11 @@ export async function POST() {
     console.log("Ingesting YC Remote Jobs...");
     const ycJobs = await scrapeYCJobs();
     allScraped.push(...ycJobs);
+
+    // 6. Run Wellfound scraper
+    console.log("Ingesting Wellfound Remote Jobs...");
+    const wellfoundJobs = await scrapeWellfoundRemoteJobs();
+    allScraped.push(...wellfoundJobs);
 
     let insertedCount = 0;
 
