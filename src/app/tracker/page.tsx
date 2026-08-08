@@ -9,7 +9,9 @@ import {
   Copy,
   Check,
   ChevronRight,
+  ChevronLeft,
   Sparkles,
+  Plus,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -69,6 +71,10 @@ const columns = [
 export default function TrackerPage() {
   const { activeProfile } = useProfileStore();
   const [apps, setApps] = useState<TrackedApplication[]>(initialApplications);
+  const [newCompany, setNewCompany] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+
   const [followupModal, setFollowupModal] = useState<{
     isOpen: boolean;
     company: string;
@@ -94,6 +100,50 @@ export default function TrackerPage() {
         return a;
       })
     );
+  };
+
+  const handleRegressStatus = (appId: string) => {
+    setApps((prev) =>
+      prev.map((a) => {
+        if (a.id === appId) {
+          const prevStatusMap: Record<string, TrackedApplication["status"]> = {
+            SHORTLISTED: "SHORTLISTED",
+            APPLIED: "SHORTLISTED",
+            SCREENING: "APPLIED",
+            TECHNICAL_ROUND: "SCREENING",
+            OFFER: "TECHNICAL_ROUND",
+            QUIET: "APPLIED",
+          };
+          return { ...a, status: prevStatusMap[a.status] };
+        }
+        return a;
+      })
+    );
+  };
+
+  const handleDirectSetStatus = (appId: string, status: TrackedApplication["status"]) => {
+    setApps((prev) =>
+      prev.map((a) => (a.id === appId ? { ...a, status } : a))
+    );
+  };
+
+  const handleAddApplication = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCompany.trim() || !newTitle.trim()) return;
+
+    const newApp: TrackedApplication = {
+      id: `app-${Date.now()}`,
+      company: newCompany.trim(),
+      title: newTitle.trim(),
+      status: "SHORTLISTED",
+      appliedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      daysSilent: 0,
+    };
+
+    setApps((prev) => [newApp, ...prev]);
+    setNewCompany("");
+    setNewTitle("");
+    setIsAdding(false);
   };
 
   const handleGenerateFollowup = (app: TrackedApplication) => {
@@ -131,17 +181,55 @@ ${activeProfile?.email || ""}`;
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header Banner */}
       <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 shadow-2xl relative overflow-hidden backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-            <Kanban className="w-6 h-6" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <Kanban className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-extrabold text-white">Application Funnel Tracker</h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Pipeline Kanban view with bidirectional stage controls (Prev / Next / Direct Select) and automated follow-ups.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-white">Application Funnel Tracker</h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Pipeline Kanban view tracking application lifecycle and automated follow-ups for quiet postings.
-            </p>
-          </div>
+
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{isAdding ? "Cancel" : "Track New Application"}</span>
+          </button>
         </div>
+
+        {/* Add Application Form */}
+        {isAdding && (
+          <form onSubmit={handleAddApplication} className="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input
+              type="text"
+              placeholder="Company Name (e.g. Stripe)"
+              value={newCompany}
+              onChange={(e) => setNewCompany(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              required
+            />
+            <input
+              type="text"
+              placeholder="Job Title (e.g. Backend Engineer)"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              required
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold transition-all shadow-md"
+            >
+              Add To Shortlist
+            </button>
+          </form>
+        )}
       </div>
 
       {/* Kanban Board Columns */}
@@ -191,7 +279,33 @@ ${activeProfile?.email || ""}`;
                         )}
                       </div>
 
+                      {/* Direct Status Move Selector */}
+                      <div>
+                        <select
+                          value={app.status}
+                          onChange={(e) => handleDirectSetStatus(app.id, e.target.value as TrackedApplication["status"])}
+                          className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                        >
+                          {columns.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              Stage: {c.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Action Buttons: Prev / Next / Follow-Up */}
                       <div className="flex items-center justify-between gap-1 pt-1">
+                        <button
+                          onClick={() => handleRegressStatus(app.id)}
+                          disabled={app.status === "SHORTLISTED"}
+                          title="Move back to previous stage"
+                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-300 text-[10px] font-mono transition-colors"
+                        >
+                          <ChevronLeft className="w-3 h-3" />
+                          <span>Prev</span>
+                        </button>
+
                         {app.daysSilent >= 10 && (
                           <button
                             onClick={() => handleGenerateFollowup(app)}
@@ -204,7 +318,9 @@ ${activeProfile?.email || ""}`;
 
                         <button
                           onClick={() => handleAdvanceStatus(app.id)}
-                          className="ml-auto flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-mono transition-colors"
+                          disabled={app.status === "OFFER"}
+                          title="Advance to next stage"
+                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-mono transition-colors"
                         >
                           <span>Next</span>
                           <ChevronRight className="w-3 h-3" />
