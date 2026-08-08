@@ -9,12 +9,18 @@ import { RemotiveProvider } from "./remotive";
 import { LinkedInProvider } from "./linkedin";
 import { YCProvider } from "./yc";
 import { WellfoundProvider } from "./wellfound";
+import { WorkableProvider } from "./workable";
+import { SmartRecruitersProvider } from "./smartrecruiters";
+import { RecruiteeProvider } from "./recruitee";
 import { generateUrlHash, computeDeduplicationKey, isDirectAtsUrl } from "./dedup";
 
 export const ACTIVE_PROVIDERS: JobSourceProvider[] = [
   new GreenhouseProvider(),
   new LeverProvider(),
   new AshbyProvider(),
+  new WorkableProvider(),
+  new SmartRecruitersProvider(),
+  new RecruiteeProvider(),
   new HimalayasProvider(),
   new RemotiveProvider(),
   new LinkedInProvider(),
