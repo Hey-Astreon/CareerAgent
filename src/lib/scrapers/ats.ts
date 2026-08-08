@@ -24,18 +24,23 @@ const SWE_TITLE_KEYWORDS = [
   "engineer", "developer", "architect", "software", "backend", "back-end",
   "full stack", "fullstack", "full-stack", "ai engineer", "machine learning",
   "systems", "frontend", "front-end", "platform", "infrastructure",
-  "web developer", "python developer", "data engineer", "devops",
+  "web developer", "python developer", "data engineer", "devops", "sre",
+  "mobile developer", "ios developer", "android developer", "coder", "programmer",
 ];
 
 const EXCLUDED_TITLES = [
-  "account executive", "recruiter", "talent acquisition", "legal", "counsel",
-  "customer support", "customer success manager", "deal strategist", "sales",
-  "operations analyst", "human resources", "hr ", "marketing", "accountant",
-  "financial analyst", "director", "vp ", "vice president", "chief ", "cto",
-  "ceo", "cfo", "coo", "head of", "general manager", "solutions architect",
-  "forward deployed", // Always field-facing senior role at companies like GitLab, Palantir
-  "field engineer",   // Senior customer-facing engineering
-  "technical account", // TAM/TAE roles are client-facing senior
+  // Sales & Business Development
+  "account executive", "recruiter", "talent acquisition", "sales", "business development", "bde", "sdr", "bdr", "account manager", "growth manager", "deal strategist", "sales engineer",
+  // Product Management & Project Management
+  "product manager", "project manager", "program manager", "product owner", "scrum master", "agile coach",
+  // Design & Content
+  "designer", "ux", "ui designer", "product designer", "graphic designer", "content writer", "copywriter", "seo", "editor",
+  // Support, Operations & Admin
+  "customer support", "customer success", "support specialist", "helpdesk", "community manager", "social media", "operations analyst", "human resources", "hr ", "people ops", "office manager", "executive assistant", "admin",
+  // Legal, Finance & Executive
+  "legal", "counsel", "compliance", "accountant", "financial analyst", "payroll", "director", "vp ", "vice president", "chief ", "cto", "ceo", "cfo", "coo", "head of", "general manager", "solutions architect",
+  // Senior field/account roles
+  "forward deployed", "field engineer", "technical account",
 ];
 
 const ONSITE_KEYWORDS = [
@@ -67,9 +72,6 @@ function cleanHtmlText(html: string): string {
   }
 }
 
-/**
- * Word-boundary safe check — prevents "internals" matching "intern", etc.
- */
 function containsWord(text: string, word: string): boolean {
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(?<![a-z])${escaped}(?![a-z])`, "i");
@@ -78,16 +80,10 @@ function containsWord(text: string, word: string): boolean {
 
 // ─── Classification Functions ─────────────────────────────────────────────────
 
-/**
- * BUG FIXED: Previously, "systems" in description matched "Backend Developer"
- * for ANY job mentioning systems (e.g. "systems thinking", "distributed systems").
- * Now uses ordered, title-first priority with proper specificity.
- */
 export function determineCategory(title: string, description: string = ""): string {
   const t = title.toLowerCase();
   const d = description.toLowerCase();
 
-  // 1. Check TITLE first (most reliable signal) with specificity order
   if (t.includes("python")) return "Python Developer";
   if (t.includes("machine learning") || t.includes("ml engineer") || t.includes("llm") || t.includes("ai engineer")) return "AI / ML Engineer";
   if (t.includes("data engineer") || t.includes("data pipeline")) return "Data Engineer";
@@ -101,27 +97,17 @@ export function determineCategory(title: string, description: string = ""): stri
   if (t.includes("web developer") || t.includes("web dev")) return "Web Developer";
   if (t.includes("mobile") || t.includes("ios") || t.includes("android")) return "Mobile Developer";
 
-  // 2. Fall back to description signals (secondary, less precise)
   if (d.includes("python") && !d.includes("javascript")) return "Python Developer";
   if (d.includes("machine learning") || d.includes("llm") || d.includes("neural network")) return "AI / ML Engineer";
   if (d.includes("devops") || d.includes("ci/cd pipelines")) return "DevOps Engineer";
   if (d.includes("react") || d.includes("vue") || d.includes("angular") || d.includes("css") || d.includes("html")) return "Frontend Developer";
 
-  // 3. Generic fallback — if it passed the SWE filter but nothing more specific matched
   return "Software Developer";
 }
 
-/**
- * BUG FIXED: Previously used text.includes("intern") which matched:
- *   "internals" → Git internals → false "Remote Internship" classification
- *   "international" → false positive
- *   "internal tooling" → false positive
- * Now uses word-boundary regex check.
- */
 export function determineJobType(title: string, description: string = ""): string {
   const text = (title + " " + description).toLowerCase();
 
-  // Word-boundary safe checks — prevents "internals" from matching "intern"
   if (
     containsWord(text, "internship") ||
     containsWord(text, "intern") ||
@@ -143,17 +129,11 @@ export function determineJobType(title: string, description: string = ""): strin
   return "Remote Full-Time";
 }
 
-/**
- * BUG FIXED: Previously returned "0-3 Years (Entry/Junior)" as a catch-all for
- * ANY role that didn't explicitly say junior/fresher — including Staff-level,
- * Principal, and Lead Engineer roles. Now detects senior signals properly.
- */
 export function determineExperienceLevel(title: string, description: string = ""): string {
   const t = title.toLowerCase();
   const d = description.toLowerCase();
   const fullText = t + " " + d;
 
-  // First: check for explicit SENIOR / STAFF / LEAD signals in TITLE
   if (
     t.includes("staff") ||
     t.includes("principal") ||
@@ -168,13 +148,11 @@ export function determineExperienceLevel(title: string, description: string = ""
     return "Senior / Staff Level (5+ Yrs)";
   }
 
-  // Second: check description body for senior experience requirements
   const hasSeniorDescSignal = SENIOR_DESC_SIGNALS.some((sig) => fullText.includes(sig));
   if (hasSeniorDescSignal) {
     return "Senior / Staff Level (5+ Yrs)";
   }
 
-  // Third: Internship / Entry / Fresher signals
   if (
     containsWord(fullText, "internship") ||
     containsWord(fullText, "intern") ||
@@ -188,7 +166,6 @@ export function determineExperienceLevel(title: string, description: string = ""
     return "Fresher / Entry Level (0-1 Yr)";
   }
 
-  // Fourth: Junior / Associate signals
   if (
     fullText.includes("junior") ||
     fullText.includes("associate engineer") ||
@@ -200,7 +177,6 @@ export function determineExperienceLevel(title: string, description: string = ""
     return "Junior (1-3 Yrs)";
   }
 
-  // Fifth: Mid-level catch (2-4 years experience mentioned)
   if (
     fullText.includes("2+ years") ||
     fullText.includes("3+ years") ||
@@ -212,55 +188,32 @@ export function determineExperienceLevel(title: string, description: string = ""
     return "Mid-Level (2-4 Yrs)";
   }
 
-  // Default: Only reach here if no signals found → treat as "0-3 Years"
   return "0-3 Years (Entry/Junior)";
 }
 
 /**
- * BUG FIXED: Previously only checked TITLE for senior/staff/principal.
- * "Staff Forward Deployed Engineer" had "Staff" inside H2 of description body,
- * not in the Greenhouse API title field — so it slipped through the filter.
- * Also added: "forward deployed", "field engineer", "solutions architect"
- * as role exclusions (always senior customer-facing, NOT entry-level SWE).
+ * STRICT FILTER: Excludes non-coding, non-developer jobs, on-site roles, and senior/staff roles.
  */
-function isStrictlyRemoteAndEarlyCareer(title: string, location: string, description: string): boolean {
+export function isStrictlyRemoteDeveloperRole(title: string, location: string = "", description: string = ""): boolean {
   const lowerTitle = title.toLowerCase();
   const lowerLoc = location.toLowerCase();
   const lowerDesc = description.toLowerCase();
 
-  // ── 1. Exclude On-Site / Hybrid / In-Office jobs ─────────────────────────
-  const isOnSite = ONSITE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerDesc.includes(kw));
-  if (isOnSite) return false;
+  // 1. Exclude non-coding / non-developer titles explicitly
+  const isNonCodingExcluded = EXCLUDED_TITLES.some((ex) => lowerTitle.includes(ex));
+  if (isNonCodingExcluded) return false;
 
-  // ── 2. Must have explicit Remote indicator ────────────────────────────────
-  const isRemote =
-    lowerLoc.includes("remote") ||
-    lowerLoc.includes("anywhere") ||
-    lowerLoc.includes("global") ||
-    lowerLoc.includes("united states") ||
-    lowerLoc.includes("india") ||
-    lowerLoc.includes("worldwide") ||
-    lowerLoc.includes("ireland") ||
-    lowerLoc.includes("denmark") ||
-    lowerLoc.includes("france") ||
-    lowerLoc.includes("germany") ||
-    lowerLoc.includes("uk") ||
-    lowerLoc.includes("united kingdom") ||
-    lowerDesc.includes("remote work") ||
-    lowerDesc.includes("work from home") ||
-    lowerDesc.includes("fully remote") ||
-    lowerDesc.includes("work remotely") ||
-    lowerDesc.includes("remote-first") ||
-    lowerDesc.includes("all remote") ||
-    lowerDesc.includes("all-remote");
+  // 2. MUST contain a software engineering / developer title keyword
+  const isCodingRole = SWE_TITLE_KEYWORDS.some((kw) => lowerTitle.includes(kw));
+  if (!isCodingRole) return false;
 
-  if (!isRemote) return false;
+  // 3. Exclude On-Site / Hybrid jobs if location/description is present
+  if (lowerLoc || lowerDesc) {
+    const isOnSite = ONSITE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerDesc.includes(kw));
+    if (isOnSite) return false;
+  }
 
-  // ── 3. Exclude non-tech / sales / senior field roles by title ─────────────
-  const isExcluded = EXCLUDED_TITLES.some((ex) => lowerTitle.includes(ex));
-  if (isExcluded) return false;
-
-  // ── 4. Exclude Senior / Staff / Principal by TITLE ───────────────────────
+  // 4. Exclude Senior / Staff / Principal / Lead by TITLE
   if (
     lowerTitle.includes("senior") ||
     lowerTitle.includes("sr.") ||
@@ -276,19 +229,17 @@ function isStrictlyRemoteAndEarlyCareer(title: string, location: string, descrip
     return false;
   }
 
-  // ── 5. Exclude Senior / Staff signals in DESCRIPTION BODY (critical fix) ──
-  const hasSeniorDescSignal = SENIOR_DESC_SIGNALS.some((sig) => lowerDesc.includes(sig));
-  if (hasSeniorDescSignal) return false;
+  // 5. Exclude Senior / Staff signals in DESCRIPTION body
+  if (lowerDesc) {
+    const hasSeniorDescSignal = SENIOR_DESC_SIGNALS.some((sig) => lowerDesc.includes(sig));
+    if (hasSeniorDescSignal) return false;
+  }
 
-  // ── 6. Must match SWE / AI / Web keywords in TITLE ───────────────────────
-  return SWE_TITLE_KEYWORDS.some((kw) => lowerTitle.includes(kw));
+  return true;
 }
 
 // ─── Scrapers ─────────────────────────────────────────────────────────────────
 
-/**
- * Scrapes Greenhouse public API board endpoint with strict Remote & Early Career filtering.
- */
 export async function scrapeGreenhouseCompany(companySlug: string): Promise<ScrapedJob[]> {
   const jobs: ScrapedJob[] = [];
   try {
@@ -297,15 +248,14 @@ export async function scrapeGreenhouseCompany(companySlug: string): Promise<Scra
 
     if (res.data && Array.isArray(res.data.jobs)) {
       for (const item of res.data.jobs) {
-        const title = item.title || "Software Engineer";
-        const locationName = item.location?.name || "Remote";
-        const rawContent = cleanHtmlText(item.content || title);
+        const title = item.title || "";
+        const locationName = item.location?.name || "";
+        const rawContent = cleanHtmlText(item.content || "");
+        const jobUrl = item.absolute_url;
 
-        if (!isStrictlyRemoteAndEarlyCareer(title, locationName, rawContent)) {
+        if (!isStrictlyRemoteDeveloperRole(title, locationName, rawContent)) {
           continue;
         }
-
-        const jobUrl = item.absolute_url || `https://boards.greenhouse.io/${companySlug}/jobs/${item.id}`;
 
         jobs.push({
           url: jobUrl,
@@ -329,9 +279,6 @@ export async function scrapeGreenhouseCompany(companySlug: string): Promise<Scra
   return jobs;
 }
 
-/**
- * Scrapes Lever public API endpoint with strict Remote & Early Career filtering.
- */
 export async function scrapeLeverCompany(companySlug: string): Promise<ScrapedJob[]> {
   const jobs: ScrapedJob[] = [];
   try {
@@ -340,15 +287,14 @@ export async function scrapeLeverCompany(companySlug: string): Promise<ScrapedJo
 
     if (Array.isArray(res.data)) {
       for (const item of res.data) {
-        const title = item.text || "Software Engineer";
-        const locationName = item.categories?.location || "Remote";
-        const rawContent = cleanHtmlText(item.descriptionPlain || item.additionalPlain || title);
+        const title = item.text || "";
+        const locationName = item.categories?.location || "";
+        const rawContent = cleanHtmlText(item.descriptionPlain || item.description || "");
+        const jobUrl = item.hostedUrl;
 
-        if (!isStrictlyRemoteAndEarlyCareer(title, locationName, rawContent)) {
+        if (!isStrictlyRemoteDeveloperRole(title, locationName, rawContent)) {
           continue;
         }
-
-        const jobUrl = item.hostedUrl || `https://jobs.lever.co/${companySlug}/${item.id}`;
 
         jobs.push({
           url: jobUrl,

@@ -1,12 +1,12 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { PlatformSource } from "@prisma/client";
-import { ScrapedJob, determineCategory, determineJobType, determineExperienceLevel } from "./ats";
+import { ScrapedJob, determineCategory, determineJobType, determineExperienceLevel, isStrictlyRemoteDeveloperRole } from "./ats";
 import { generateUrlHash } from "./dedup";
 
 /**
  * Scrapes real, live Remote Software Engineering jobs directly from LinkedIn's public guest search API.
- * No login needed, 100% genuine live LinkedIn job view URLs (https://www.linkedin.com/jobs/view/...).
+ * Strictly enforces developer/coding role filter — non-coding jobs are dropped.
  */
 export async function scrapeLinkedInRemoteJobs(): Promise<ScrapedJob[]> {
   const jobs: ScrapedJob[] = [];
@@ -21,7 +21,6 @@ export async function scrapeLinkedInRemoteJobs(): Promise<ScrapedJob[]> {
   for (const query of searchQueries) {
     try {
       const encodedQuery = encodeURIComponent(query);
-      // f_WT=2 is LinkedIn's official filter for "Remote"
       const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodedQuery}&location=Remote&f_WT=2&start=0`;
 
       const res = await axios.get(url, {
@@ -44,20 +43,10 @@ export async function scrapeLinkedInRemoteJobs(): Promise<ScrapedJob[]> {
           const datetime = $(el).find("time").attr("datetime");
 
           if (title && link && link.includes("/jobs/view/")) {
-            // Clean URL to direct public view page
             const cleanUrl = link.split("?")[0];
-            const lowerTitle = title.toLowerCase();
 
-            // Guard against Senior / Staff roles
-            if (
-              lowerTitle.includes("senior") ||
-              lowerTitle.includes("staff") ||
-              lowerTitle.includes("principal") ||
-              lowerTitle.includes("lead") ||
-              lowerTitle.includes("director") ||
-              lowerTitle.includes("head of") ||
-              lowerTitle.includes("manager")
-            ) {
+            // Strictly enforce coding & remote developer role filter
+            if (!isStrictlyRemoteDeveloperRole(title, rawLocation, title)) {
               return;
             }
 

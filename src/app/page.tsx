@@ -16,7 +16,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { determineCategory, determineJobType, determineExperienceLevel } from "@/lib/scrapers/ats";
+import { determineCategory, determineJobType, determineExperienceLevel, isStrictlyRemoteDeveloperRole } from "@/lib/scrapers/ats";
 
 interface JobItem {
   id: string;
@@ -195,7 +195,9 @@ export default function Home() {
       selectedPlatform === "ALL" ||
       job.platform.toUpperCase() === selectedPlatform.toUpperCase();
 
-    return matchesSearch && matchesCategory && matchesType && matchesExp && matchesPlatform;
+    const isDeveloperCodingJob = isStrictlyRemoteDeveloperRole(job.title, job.location, job.rawDescription);
+
+    return isDeveloperCodingJob && matchesSearch && matchesCategory && matchesType && matchesExp && matchesPlatform;
   });
 
   return (
