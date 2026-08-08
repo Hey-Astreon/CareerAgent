@@ -38,16 +38,23 @@ function cleanText(htmlOrText: string): string {
   return htmlOrText.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
 }
 
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
+/**
+ * Calculates dynamic real-time relative posting age from postedAt timestamp.
+ */
+function timeAgo(dateStr: string, currentMs: number): string {
+  if (!dateStr) return "Recently";
   const posted = new Date(dateStr).getTime();
-  const diffMs = now - posted;
+  if (isNaN(posted)) return "Recently";
+
+  const diffMs = Math.max(0, currentMs - posted);
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return `1d ago`;
+  if (diffDays === 1) return "1d ago";
   if (diffDays < 7) return `${diffDays}d ago`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
   return `${Math.floor(diffDays / 30)}mo ago`;
@@ -63,6 +70,16 @@ export default function Home() {
   const [drawerJob, setDrawerJob] = useState<JobItem | null>(null);
   const [isScraping, setIsScraping] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  
+  // Real-Time Dynamic Clock Tick (Updates relative age every 30s)
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTick(Date.now());
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     async function loadJobs() {
@@ -168,7 +185,7 @@ export default function Home() {
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
-      {/* Minimal Header */}
+      {/* Header Banner */}
       <div className="p-4 rounded-xl bg-[#121215] border border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
@@ -297,6 +314,7 @@ export default function Home() {
           {filteredJobs.map((job) => {
             const displayCategory = determineCategory(job.title, job.rawDescription);
             const displayExpLevel = determineExperienceLevel(job.title, job.rawDescription);
+            const relativeTimeStr = timeAgo(job.postedAt, nowTick);
 
             return (
               <div
@@ -332,8 +350,8 @@ export default function Home() {
                   <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">
                     100% Remote
                   </span>
-                  <span className="text-[11px] font-mono text-zinc-500">
-                    {timeAgo(job.postedAt)}
+                  <span className="text-[11px] font-mono text-zinc-400 font-medium">
+                    {relativeTimeStr}
                   </span>
                   <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
                 </div>
@@ -348,6 +366,7 @@ export default function Home() {
             const displayCategory = determineCategory(job.title, job.rawDescription);
             const displayExpLevel = determineExperienceLevel(job.title, job.rawDescription);
             const cleanDesc = cleanText(job.rawDescription);
+            const relativeTimeStr = timeAgo(job.postedAt, nowTick);
 
             return (
               <div
@@ -392,8 +411,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex items-center justify-between pt-2.5 border-t border-white/[0.06]">
-                  <span className="text-[11px] font-mono text-zinc-500">
-                    Posted {timeAgo(job.postedAt)}
+                  <span className="text-[11px] font-mono text-zinc-400 font-medium">
+                    Posted {relativeTimeStr}
                   </span>
                   <span className="text-xs font-medium text-white group-hover:underline flex items-center gap-1">
                     <span>Inspect</span>
@@ -431,6 +450,21 @@ export default function Home() {
                 >
                   <X className="w-4 h-4" />
                 </button>
+              </div>
+
+              {/* Badges */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-[#121215] border border-white/[0.06]">
+                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Posting Age</div>
+                  <div className="text-xs font-semibold text-white mt-0.5 font-mono">
+                    Posted {timeAgo(drawerJob.postedAt, nowTick)}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#121215] border border-white/[0.06]">
+                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Remote Type</div>
+                  <div className="text-xs font-semibold text-emerald-400 mt-0.5">100% Work From Home</div>
+                </div>
               </div>
 
               {/* Description */}
