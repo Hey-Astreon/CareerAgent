@@ -98,6 +98,24 @@ export default function Home() {
     }
   };
 
+  const handleTrackJob = async (job: JobItem) => {
+    try {
+      await fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileSlug: activeProfileSlug || "roushan",
+          jobPostingId: job.id,
+          company: job.company,
+          title: job.title,
+          url: job.url,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to track application automatically:", err);
+    }
+  };
+
   // Dynamically compute unique role categories available in market database
   const availableCategories = useMemo(() => {
     const defaultList = [
@@ -418,13 +436,20 @@ export default function Home() {
                     href={job.url}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => handleTrackJob(job)}
                     className="text-xs font-mono text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1.5 transition-colors underline underline-offset-4"
                   >
                     <span>Direct Apply Link (100% Verified)</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
 
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors">
+                  <button
+                    onClick={() => {
+                      handleTrackJob(job);
+                      alert(`Application Kit automatically generated & tracked in Funnel Tracker for ${job.company}!`);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors"
+                  >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Generate Application Kit</span>
                   </button>

@@ -12,8 +12,9 @@ import {
   ChevronLeft,
   Sparkles,
   Plus,
+  RefreshCw,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface TrackedApplication {
   id: string;
@@ -69,8 +70,9 @@ const columns = [
 ];
 
 export default function TrackerPage() {
-  const { activeProfile } = useProfileStore();
+  const { activeProfile, activeProfileSlug } = useProfileStore();
   const [apps, setApps] = useState<TrackedApplication[]>(initialApplications);
+  const [loading, setLoading] = useState(true);
   const [newCompany, setNewCompany] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -83,19 +85,56 @@ export default function TrackerPage() {
   }>({ isOpen: false, company: "", title: "", text: "" });
   const [copied, setCopied] = useState(false);
 
+  // Load real applications dynamically from database on mount or profile change
+  const loadApplications = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/applications?profileSlug=${activeProfileSlug || "roushan"}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.applications) && data.applications.length > 0) {
+        setApps(data.applications);
+      } else {
+        setApps(initialApplications);
+      }
+    } catch (err) {
+      console.error("Failed to load applications from API:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadApplications();
+  }, [activeProfileSlug]);
+
+  const updateApplicationStatusInBackend = async (id: string, newStatus: string) => {
+    try {
+      await fetch("/api/applications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+    } catch (err) {
+      console.error("Failed to sync application status with API:", err);
+    }
+  };
+
   const handleAdvanceStatus = (appId: string) => {
+    const nextStatusMap: Record<string, TrackedApplication["status"]> = {
+      SHORTLISTED: "APPLIED",
+      APPLIED: "SCREENING",
+      SCREENING: "TECHNICAL_ROUND",
+      TECHNICAL_ROUND: "OFFER",
+      OFFER: "OFFER",
+      QUIET: "APPLIED",
+    };
+
     setApps((prev) =>
       prev.map((a) => {
         if (a.id === appId) {
-          const nextStatusMap: Record<string, TrackedApplication["status"]> = {
-            SHORTLISTED: "APPLIED",
-            APPLIED: "SCREENING",
-            SCREENING: "TECHNICAL_ROUND",
-            TECHNICAL_ROUND: "OFFER",
-            OFFER: "OFFER",
-            QUIET: "APPLIED",
-          };
-          return { ...a, status: nextStatusMap[a.status] };
+          const nextSt = nextStatusMap[a.status];
+          updateApplicationStatusInBackend(a.id, nextSt);
+          return { ...a, status: nextSt };
         }
         return a;
       })
@@ -103,18 +142,21 @@ export default function TrackerPage() {
   };
 
   const handleRegressStatus = (appId: string) => {
+    const prevStatusMap: Record<string, TrackedApplication["status"]> = {
+      SHORTLISTED: "SHORTLISTED",
+      APPLIED: "SHORTLISTED",
+      SCREENING: "APPLIED",
+      TECHNICAL_ROUND: "SCREENING",
+      OFFER: "TECHNICAL_ROUND",
+      QUIET: "APPLIED",
+    };
+
     setApps((prev) =>
       prev.map((a) => {
         if (a.id === appId) {
-          const prevStatusMap: Record<string, TrackedApplication["status"]> = {
-            SHORTLISTED: "SHORTLISTED",
-            APPLIED: "SHORTLISTED",
-            SCREENING: "APPLIED",
-            TECHNICAL_ROUND: "SCREENING",
-            OFFER: "TECHNICAL_ROUND",
-            QUIET: "APPLIED",
-          };
-          return { ...a, status: prevStatusMap[a.status] };
+          const prevSt = prevStatusMap[a.status];
+          updateApplicationStatusInBackend(a.id, prevSt);
+          return { ...a, status: prevSt };
         }
         return a;
       })
@@ -122,25 +164,34 @@ export default function TrackerPage() {
   };
 
   const handleDirectSetStatus = (appId: string, status: TrackedApplication["status"]) => {
+    updateApplicationStatusInBackend(appId, status);
     setApps((prev) =>
       prev.map((a) => (a.id === appId ? { ...a, status } : a))
     );
   };
 
-  const handleAddApplication = (e: React.FormEvent) => {
+  const handleAddApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCompany.trim() || !newTitle.trim()) return;
 
-    const newApp: TrackedApplication = {
-      id: `app-${Date.now()}`,
-      company: newCompany.trim(),
-      title: newTitle.trim(),
-      status: "SHORTLISTED",
-      appliedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      daysSilent: 0,
-    };
+    try {
+      const res = await fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileSlug: activeProfileSlug || "roushan",
+          company: newCompany.trim(),
+          title: newTitle.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadApplications();
+      }
+    } catch (err) {
+      console.error("Failed to add application:", err);
+    }
 
-    setApps((prev) => [newApp, ...prev]);
     setNewCompany("");
     setNewTitle("");
     setIsAdding(false);
@@ -189,18 +240,28 @@ ${activeProfile?.email || ""}`;
             <div>
               <h1 className="text-xl font-extrabold text-white">Application Funnel Tracker</h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Pipeline Kanban view with bidirectional stage controls (Prev / Next / Direct Select) and automated follow-ups.
+                Dynamic pipeline Kanban tracking <span className="text-slate-200 font-semibold">{apps.length} active applications</span> for <span className="text-cyan-400 font-semibold">{activeProfile?.fullName || "Active Candidate"}</span>.
               </p>
             </div>
           </div>
 
-          <button
-            onClick={() => setIsAdding(!isAdding)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{isAdding ? "Cancel" : "Track New Application"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadApplications}
+              className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+              title="Refresh Pipeline Applications"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+
+            <button
+              onClick={() => setIsAdding(!isAdding)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{isAdding ? "Cancel" : "Track New Application"}</span>
+            </button>
+          </div>
         </div>
 
         {/* Add Application Form */}
@@ -226,7 +287,7 @@ ${activeProfile?.email || ""}`;
               type="submit"
               className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold transition-all shadow-md"
             >
-              Add To Shortlist
+              Add To Pipeline
             </button>
           </form>
         )}
