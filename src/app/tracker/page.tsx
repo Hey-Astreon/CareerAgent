@@ -61,7 +61,7 @@ const initialApplications: TrackedApplication[] = [
 ];
 
 const columns = [
-  { id: "SHORTLISTED", title: "Shortlisted", color: "text-cyan-400 border-cyan-500/30" },
+  { id: "SHORTLISTED", title: "Shortlisted", color: "text-indigo-400 border-indigo-500/30" },
   { id: "APPLIED", title: "Applied", color: "text-blue-400 border-blue-500/30" },
   { id: "SCREENING", title: "Screening", color: "text-violet-400 border-violet-500/30" },
   { id: "TECHNICAL_ROUND", title: "Technical", color: "text-amber-400 border-amber-500/30" },
@@ -85,7 +85,6 @@ export default function TrackerPage() {
   }>({ isOpen: false, company: "", title: "", text: "" });
   const [copied, setCopied] = useState(false);
 
-  // Load real applications dynamically from database on mount or profile change
   const loadApplications = async () => {
     setLoading(true);
     try {
@@ -231,16 +230,16 @@ ${activeProfile?.email || ""}`;
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+      <div className="p-6 rounded-2xl bg-[#0F172A]/80 border border-slate-800/80 shadow-2xl relative overflow-hidden backdrop-blur-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              <Kanban className="w-6 h-6" />
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <Kanban className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-white">Application Funnel Tracker</h1>
+              <h1 className="text-xl font-bold text-white tracking-tight">Application Funnel Tracker</h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Dynamic pipeline Kanban tracking <span className="text-slate-200 font-semibold">{apps.length} active applications</span> for <span className="text-cyan-400 font-semibold">{activeProfile?.fullName || "Active Candidate"}</span>.
+                Dynamic pipeline Kanban tracking <span className="text-slate-200 font-semibold">{apps.length} active applications</span> for <span className="text-indigo-400 font-semibold">{activeProfile?.fullName || "Active Candidate"}</span>.
               </p>
             </div>
           </div>
@@ -248,7 +247,7 @@ ${activeProfile?.email || ""}`;
           <div className="flex items-center gap-2">
             <button
               onClick={loadApplications}
-              className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
               title="Refresh Pipeline Applications"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -256,7 +255,7 @@ ${activeProfile?.email || ""}`;
 
             <button
               onClick={() => setIsAdding(!isAdding)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors shrink-0"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shrink-0 shadow-md shadow-indigo-600/20"
             >
               <Plus className="w-4 h-4" />
               <span>{isAdding ? "Cancel" : "Track New Application"}</span>
@@ -272,7 +271,7 @@ ${activeProfile?.email || ""}`;
               placeholder="Company Name (e.g. Stripe)"
               value={newCompany}
               onChange={(e) => setNewCompany(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               required
             />
             <input
@@ -280,12 +279,12 @@ ${activeProfile?.email || ""}`;
               placeholder="Job Title (e.g. Backend Engineer)"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               required
             />
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold transition-all shadow-md"
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-md"
             >
               Add To Pipeline
             </button>
@@ -300,14 +299,14 @@ ${activeProfile?.email || ""}`;
           return (
             <div
               key={col.id}
-              className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-col justify-between space-y-3 min-h-[500px]"
+              className="p-3.5 rounded-2xl bg-[#0F172A]/60 border border-slate-800/80 flex flex-col justify-between space-y-3 min-h-[500px]"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
-                  <span className={`text-xs font-bold font-mono ${col.color}`}>
+                  <span className={`text-xs font-bold font-sans ${col.color}`}>
                     {col.title}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono text-slate-300">
+                  <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300">
                     {colApps.length}
                   </span>
                 </div>
@@ -316,25 +315,25 @@ ${activeProfile?.email || ""}`;
                   {colApps.map((app) => (
                     <div
                       key={app.id}
-                      className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-cyan-500/30 transition-all duration-200 shadow-md space-y-2.5"
+                      className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all duration-200 shadow-md space-y-2.5"
                     >
                       <div>
-                        <div className="text-[11px] font-mono text-cyan-400 flex items-center gap-1">
+                        <div className="text-[11px] font-mono text-indigo-400 flex items-center gap-1">
                           <Building2 className="w-3 h-3" />
                           {app.company}
                         </div>
-                        <h4 className="text-xs font-bold text-slate-200 mt-0.5 line-clamp-2">
+                        <h4 className="text-xs font-semibold text-slate-200 mt-0.5 line-clamp-2">
                           {app.title}
                         </h4>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60">
+                      <div className="flex items-center justify-between text-[10px] font-sans text-slate-400 pt-1 border-t border-slate-800/60">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3 text-slate-500" />
                           {app.appliedDate}
                         </span>
                         {app.daysSilent >= 10 && (
-                          <span className="text-rose-400 font-semibold">
+                          <span className="text-rose-400 font-medium">
                             {app.daysSilent}d quiet
                           </span>
                         )}
@@ -345,7 +344,7 @@ ${activeProfile?.email || ""}`;
                         <select
                           value={app.status}
                           onChange={(e) => handleDirectSetStatus(app.id, e.target.value as TrackedApplication["status"])}
-                          className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                          className="w-full px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] font-sans text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer"
                         >
                           {columns.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -361,7 +360,7 @@ ${activeProfile?.email || ""}`;
                           onClick={() => handleRegressStatus(app.id)}
                           disabled={app.status === "SHORTLISTED"}
                           title="Move back to previous stage"
-                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-300 text-[10px] font-mono transition-colors"
+                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 disabled:opacity-40 text-slate-300 text-[10px] font-sans transition-colors"
                         >
                           <ChevronLeft className="w-3 h-3" />
                           <span>Prev</span>
@@ -370,7 +369,7 @@ ${activeProfile?.email || ""}`;
                         {app.daysSilent >= 10 && (
                           <button
                             onClick={() => handleGenerateFollowup(app)}
-                            className="flex items-center gap-1 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-mono transition-colors"
+                            className="flex items-center gap-1 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-sans transition-colors"
                           >
                             <Mail className="w-3 h-3" />
                             <span>Follow Up</span>
@@ -381,7 +380,7 @@ ${activeProfile?.email || ""}`;
                           onClick={() => handleAdvanceStatus(app.id)}
                           disabled={app.status === "OFFER"}
                           title="Advance to next stage"
-                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-mono transition-colors"
+                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[10px] font-sans transition-colors"
                         >
                           <span>Next</span>
                           <ChevronRight className="w-3 h-3" />
@@ -402,8 +401,8 @@ ${activeProfile?.email || ""}`;
           <div className="w-full max-w-xl p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2 text-sm font-bold text-white">
-                <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span>Follow-Up Draft: {followupModal.company}</span>
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <span>Follow-Up Email Draft: {followupModal.company}</span>
               </div>
 
               <button
@@ -414,14 +413,14 @@ ${activeProfile?.email || ""}`;
               </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-sans text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
               {followupModal.text}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={handleCopyText}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shadow-md shadow-indigo-600/20"
               >
                 {copied ? (
                   <>
