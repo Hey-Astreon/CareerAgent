@@ -60,15 +60,37 @@ const SENIOR_DESC_SIGNALS = [
   "manage engineers", "people manager",
 ];
 
-// ─── Utility Functions ────────────────────────────────────────────────────────
-
-function cleanHtmlText(html: string): string {
+export function cleanHtmlText(html: string): string {
   if (!html) return "";
   try {
     const $ = cheerio.load(html);
-    return $.text().replace(/\s+/g, " ").trim();
+    $("br").replaceWith("\n");
+    $("p, div, h1, h2, h3, h4").each((_, el) => {
+      $(el).prepend("\n\n");
+    });
+    $("li").each((_, el) => {
+      $(el).prepend("\n• ");
+    });
+
+    const rawText = $.text();
+    return rawText
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\r\n/g, "\n")
+      .replace(/\n\s*\n\s*\n+/g, "\n\n")
+      .trim();
   } catch {
-    return html.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+    return html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<li[^>]*>/gi, "\n• ")
+      .replace(/<[^>]*>?/gm, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 }
 

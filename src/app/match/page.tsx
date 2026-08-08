@@ -21,6 +21,27 @@ interface MatchScoreData {
   reasoning: string;
 }
 
+function cleanAndFormatDescription(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "\n• ")
+    .replace(/<p[^>]*>/gi, "\n\n")
+    .replace(/<\/p>/gi, "")
+    .replace(/<div[^>]*>/gi, "\n")
+    .replace(/<\/div>/gi, "")
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n\s*\n\s*\n+/g, "\n\n")
+    .trim();
+}
+
 export default function MatchStudioPage() {
   const { activeProfile, activeProfileSlug } = useProfileStore();
   const [jobs, setJobs] = useState<JobItem[]>([]);
@@ -212,10 +233,10 @@ export default function MatchStudioPage() {
                 </div>
               )}
 
-              {/* Raw Job Description Preview */}
+              {/* Clean Job Description Preview */}
               <div className="space-y-2 pt-2 border-t border-slate-800/60">
                 <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-                  <span>Raw Job Description Text</span>
+                  <span>Clean Job Description</span>
                   <a
                     href={selectedJob.url}
                     target="_blank"
@@ -226,8 +247,8 @@ export default function MatchStudioPage() {
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs font-mono text-slate-300 max-h-48 overflow-y-auto leading-relaxed">
-                  {selectedJob.rawDescription}
+                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs font-sans text-slate-300 max-h-56 overflow-y-auto leading-relaxed whitespace-pre-wrap">
+                  {cleanAndFormatDescription(selectedJob.rawDescription)}
                 </div>
               </div>
             </div>
