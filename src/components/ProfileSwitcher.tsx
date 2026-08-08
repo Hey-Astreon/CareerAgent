@@ -33,7 +33,7 @@ export function ProfileSwitcher() {
     <div className="relative inline-block text-left">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/[0.08] hover:border-white/20 transition-all shadow-sm group"
+        className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/[0.08] hover:border-white/20 transition-colors shadow-sm group"
       >
         <div className="flex items-center justify-center w-5 h-5 rounded bg-zinc-800 text-white font-bold text-[10px] border border-white/10">
           {activeProfileSlug === "roushan" ? "RK" : "AR"}
@@ -49,8 +49,8 @@ export function ProfileSwitcher() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-60 rounded-xl bg-zinc-950 border border-white/10 shadow-2xl backdrop-blur-2xl z-50 overflow-hidden py-1">
-          <div className="px-3 py-2 border-b border-white/[0.08] text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
+        <div className="absolute right-0 mt-2 w-56 rounded-xl bg-zinc-950 border border-white/10 shadow-2xl backdrop-blur-xl z-50 overflow-hidden py-1">
+          <div className="px-3 py-1.5 border-b border-white/[0.08] text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
             Switch Candidate Context
           </div>
           <button

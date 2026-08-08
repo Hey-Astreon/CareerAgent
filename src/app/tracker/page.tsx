@@ -229,69 +229,67 @@ ${activeProfile?.email || ""}`;
   };
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+    <div className="space-y-4 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="p-5 rounded-2xl bg-zinc-950 border border-white/[0.08] shadow-2xl relative overflow-hidden backdrop-blur-2xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-zinc-900 border border-white/10 text-white">
-              <Kanban className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">Application Funnel Tracker</h1>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Dynamic pipeline Kanban tracking <span className="text-white font-semibold">{apps.length} active applications</span> for <span className="text-white font-semibold">{activeProfile?.fullName || "Active Candidate"}</span>.
-              </p>
-            </div>
+      <div className="p-4 rounded-xl bg-[#121215] border border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-zinc-900 border border-white/10 text-white">
+            <Kanban className="w-4 h-4" />
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={loadApplications}
-              className="p-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white transition-colors"
-              title="Refresh Pipeline Applications"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            </button>
-
-            <button
-              onClick={() => setIsAdding(!isAdding)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors shrink-0 shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{isAdding ? "Cancel" : "Track Application"}</span>
-            </button>
+          <div>
+            <h1 className="text-base font-bold text-white tracking-tight">Application Funnel Tracker</h1>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Dynamic pipeline tracking <span className="text-white font-medium">{apps.length} active applications</span> for <span className="text-white font-medium">{activeProfile?.fullName || "Active Candidate"}</span>.
+            </p>
           </div>
         </div>
 
-        {/* Add Form */}
-        {isAdding && (
-          <form onSubmit={handleAddApplication} className="mt-4 pt-4 border-t border-white/[0.08] grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input
-              type="text"
-              placeholder="Company Name (e.g. Stripe)"
-              value={newCompany}
-              onChange={(e) => setNewCompany(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none"
-              required
-            />
-            <input
-              type="text"
-              placeholder="Job Title (e.g. Backend Engineer)"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none"
-              required
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-all shadow-md"
-            >
-              Add To Pipeline
-            </button>
-          </form>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadApplications}
+            className="p-1.5 rounded-lg bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white transition-colors"
+            title="Refresh Applications"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          </button>
+
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors shrink-0 shadow-sm"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{isAdding ? "Cancel" : "Track Application"}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Add Form */}
+      {isAdding && (
+        <form onSubmit={handleAddApplication} className="p-3.5 rounded-xl bg-[#121215] border border-white/[0.08] grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <input
+            type="text"
+            placeholder="Company Name (e.g. Stripe)"
+            value={newCompany}
+            onChange={(e) => setNewCompany(e.target.value)}
+            className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none"
+            required
+          />
+          <input
+            type="text"
+            placeholder="Job Title (e.g. Backend Engineer)"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none"
+            required
+          />
+          <button
+            type="submit"
+            className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors shadow-sm"
+          >
+            Add To Pipeline
+          </button>
+        </form>
+      )}
 
       {/* Kanban Columns */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -300,9 +298,9 @@ ${activeProfile?.email || ""}`;
           return (
             <div
               key={col.id}
-              className="p-3 rounded-2xl bg-zinc-950 border border-white/[0.08] flex flex-col justify-between space-y-3 min-h-[500px]"
+              className="p-3 rounded-xl bg-[#121215] border border-white/[0.08] flex flex-col justify-between space-y-3 min-h-[480px]"
             >
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
                   <span className="text-xs font-semibold text-white font-mono">
                     {col.title}
@@ -316,7 +314,7 @@ ${activeProfile?.email || ""}`;
                   {colApps.map((app) => (
                     <div
                       key={app.id}
-                      className="p-3 rounded-xl bg-zinc-900 border border-white/[0.06] hover:border-white/20 transition-all shadow-md space-y-2"
+                      className="p-3 rounded-lg bg-zinc-900/80 border border-white/[0.06] hover:border-white/20 transition-all shadow-sm space-y-2"
                     >
                       <div>
                         <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-1">
@@ -345,7 +343,7 @@ ${activeProfile?.email || ""}`;
                         <select
                           value={app.status}
                           onChange={(e) => handleDirectSetStatus(app.id, e.target.value as TrackedApplication["status"])}
-                          className="w-full px-2 py-1 rounded bg-zinc-950 border border-white/10 text-[10px] font-sans text-zinc-300 focus:outline-none cursor-pointer"
+                          className="w-full px-2 py-1 rounded bg-[#09090b] border border-white/10 text-[10px] font-sans text-zinc-300 focus:outline-none cursor-pointer"
                         >
                           {columns.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -360,8 +358,8 @@ ${activeProfile?.email || ""}`;
                         <button
                           onClick={() => handleRegressStatus(app.id)}
                           disabled={app.status === "SHORTLISTED"}
-                          title="Move back to previous stage"
-                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-zinc-950 border border-white/10 hover:bg-zinc-800 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors"
+                          title="Move back"
+                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-[#09090b] border border-white/10 hover:bg-zinc-800 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors"
                         >
                           <ChevronLeft className="w-3 h-3" />
                           <span>Prev</span>
@@ -380,7 +378,7 @@ ${activeProfile?.email || ""}`;
                         <button
                           onClick={() => handleAdvanceStatus(app.id)}
                           disabled={app.status === "OFFER"}
-                          title="Advance to next stage"
+                          title="Advance"
                           className="flex items-center gap-0.5 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10 text-[10px] transition-colors"
                         >
                           <span>Next</span>
@@ -398,10 +396,10 @@ ${activeProfile?.email || ""}`;
 
       {/* Follow-Up Draft Modal */}
       {followupModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-xl p-6 rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-xl p-5 rounded-xl bg-[#09090b] border border-white/10 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-              <div className="flex items-center gap-2 text-sm font-bold text-white">
+              <div className="flex items-center gap-2 text-xs font-bold text-white">
                 <Sparkles className="w-4 h-4 text-white" />
                 <span>Follow-Up Email Draft: {followupModal.company}</span>
               </div>
@@ -414,23 +412,23 @@ ${activeProfile?.email || ""}`;
               </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/[0.06] font-sans text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
+            <div className="p-3.5 rounded-lg bg-[#121215] border border-white/[0.06] font-sans text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
               {followupModal.text}
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 onClick={handleCopyText}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors shadow-md"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors shadow-sm"
               >
                 {copied ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-600" />
-                    <span className="text-emerald-700">Copied to Clipboard!</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-700">Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-4 h-4" />
+                    <Copy className="w-3.5 h-3.5" />
                     <span>Copy Draft Email</span>
                   </>
                 )}
