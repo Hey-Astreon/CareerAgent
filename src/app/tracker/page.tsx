@@ -13,6 +13,7 @@ import {
   Sparkles,
   Plus,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -61,12 +62,12 @@ const initialApplications: TrackedApplication[] = [
 ];
 
 const columns = [
-  { id: "SHORTLISTED", title: "Shortlisted", color: "text-indigo-400 border-indigo-500/30" },
-  { id: "APPLIED", title: "Applied", color: "text-blue-400 border-blue-500/30" },
-  { id: "SCREENING", title: "Screening", color: "text-violet-400 border-violet-500/30" },
-  { id: "TECHNICAL_ROUND", title: "Technical", color: "text-amber-400 border-amber-500/30" },
-  { id: "OFFER", title: "Offer", color: "text-emerald-400 border-emerald-500/30" },
-  { id: "QUIET", title: "Quiet (>10d)", color: "text-rose-400 border-rose-500/30" },
+  { id: "SHORTLISTED", title: "Shortlisted" },
+  { id: "APPLIED", title: "Applied" },
+  { id: "SCREENING", title: "Screening" },
+  { id: "TECHNICAL_ROUND", title: "Technical" },
+  { id: "OFFER", title: "Offer" },
+  { id: "QUIET", title: "Quiet (>10d)" },
 ];
 
 export default function TrackerPage() {
@@ -228,18 +229,18 @@ ${activeProfile?.email || ""}`;
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-5 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="p-6 rounded-2xl bg-[#0F172A]/80 border border-slate-800/80 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+      <div className="p-5 rounded-2xl bg-zinc-950 border border-white/[0.08] shadow-2xl relative overflow-hidden backdrop-blur-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <div className="p-2 rounded-xl bg-zinc-900 border border-white/10 text-white">
               <Kanban className="w-5 h-5" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-white tracking-tight">Application Funnel Tracker</h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Dynamic pipeline Kanban tracking <span className="text-slate-200 font-semibold">{apps.length} active applications</span> for <span className="text-indigo-400 font-semibold">{activeProfile?.fullName || "Active Candidate"}</span>.
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Dynamic pipeline Kanban tracking <span className="text-white font-semibold">{apps.length} active applications</span> for <span className="text-white font-semibold">{activeProfile?.fullName || "Active Candidate"}</span>.
               </p>
             </div>
           </div>
@@ -247,7 +248,7 @@ ${activeProfile?.email || ""}`;
           <div className="flex items-center gap-2">
             <button
               onClick={loadApplications}
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+              className="p-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white transition-colors"
               title="Refresh Pipeline Applications"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -255,23 +256,23 @@ ${activeProfile?.email || ""}`;
 
             <button
               onClick={() => setIsAdding(!isAdding)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shrink-0 shadow-md shadow-indigo-600/20"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors shrink-0 shadow-md"
             >
               <Plus className="w-4 h-4" />
-              <span>{isAdding ? "Cancel" : "Track New Application"}</span>
+              <span>{isAdding ? "Cancel" : "Track Application"}</span>
             </button>
           </div>
         </div>
 
-        {/* Add Application Form */}
+        {/* Add Form */}
         {isAdding && (
-          <form onSubmit={handleAddApplication} className="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <form onSubmit={handleAddApplication} className="mt-4 pt-4 border-t border-white/[0.08] grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
               type="text"
               placeholder="Company Name (e.g. Stripe)"
               value={newCompany}
               onChange={(e) => setNewCompany(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none"
               required
             />
             <input
@@ -279,12 +280,12 @@ ${activeProfile?.email || ""}`;
               placeholder="Job Title (e.g. Backend Engineer)"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none"
               required
             />
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-md"
+              className="px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-all shadow-md"
             >
               Add To Pipeline
             </button>
@@ -292,44 +293,44 @@ ${activeProfile?.email || ""}`;
         )}
       </div>
 
-      {/* Kanban Board Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Kanban Columns */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {columns.map((col) => {
           const colApps = apps.filter((a) => a.status === col.id);
           return (
             <div
               key={col.id}
-              className="p-3.5 rounded-2xl bg-[#0F172A]/60 border border-slate-800/80 flex flex-col justify-between space-y-3 min-h-[500px]"
+              className="p-3 rounded-2xl bg-zinc-950 border border-white/[0.08] flex flex-col justify-between space-y-3 min-h-[500px]"
             >
               <div className="space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
-                  <span className={`text-xs font-bold font-sans ${col.color}`}>
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                  <span className="text-xs font-semibold text-white font-mono">
                     {col.title}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300">
+                  <span className="px-1.5 py-0.2 rounded bg-zinc-900 border border-white/10 text-[10px] font-mono text-zinc-400">
                     {colApps.length}
                   </span>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {colApps.map((app) => (
                     <div
                       key={app.id}
-                      className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all duration-200 shadow-md space-y-2.5"
+                      className="p-3 rounded-xl bg-zinc-900 border border-white/[0.06] hover:border-white/20 transition-all shadow-md space-y-2"
                     >
                       <div>
-                        <div className="text-[11px] font-mono text-indigo-400 flex items-center gap-1">
-                          <Building2 className="w-3 h-3" />
+                        <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-zinc-400" />
                           {app.company}
                         </div>
-                        <h4 className="text-xs font-semibold text-slate-200 mt-0.5 line-clamp-2">
+                        <h4 className="text-xs font-semibold text-white mt-0.5 line-clamp-2">
                           {app.title}
                         </h4>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] font-sans text-slate-400 pt-1 border-t border-slate-800/60">
+                      <div className="flex items-center justify-between text-[10px] font-sans text-zinc-400 pt-1 border-t border-white/[0.06]">
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-500" />
+                          <Clock className="w-3 h-3 text-zinc-500" />
                           {app.appliedDate}
                         </span>
                         {app.daysSilent >= 10 && (
@@ -339,12 +340,12 @@ ${activeProfile?.email || ""}`;
                         )}
                       </div>
 
-                      {/* Direct Status Move Selector */}
+                      {/* Status Selector */}
                       <div>
                         <select
                           value={app.status}
                           onChange={(e) => handleDirectSetStatus(app.id, e.target.value as TrackedApplication["status"])}
-                          className="w-full px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] font-sans text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          className="w-full px-2 py-1 rounded bg-zinc-950 border border-white/10 text-[10px] font-sans text-zinc-300 focus:outline-none cursor-pointer"
                         >
                           {columns.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -354,13 +355,13 @@ ${activeProfile?.email || ""}`;
                         </select>
                       </div>
 
-                      {/* Action Buttons: Prev / Next / Follow-Up */}
+                      {/* Action Buttons */}
                       <div className="flex items-center justify-between gap-1 pt-1">
                         <button
                           onClick={() => handleRegressStatus(app.id)}
                           disabled={app.status === "SHORTLISTED"}
                           title="Move back to previous stage"
-                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 disabled:opacity-40 text-slate-300 text-[10px] font-sans transition-colors"
+                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-zinc-950 border border-white/10 hover:bg-zinc-800 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors"
                         >
                           <ChevronLeft className="w-3 h-3" />
                           <span>Prev</span>
@@ -369,7 +370,7 @@ ${activeProfile?.email || ""}`;
                         {app.daysSilent >= 10 && (
                           <button
                             onClick={() => handleGenerateFollowup(app)}
-                            className="flex items-center gap-1 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-sans transition-colors"
+                            className="flex items-center gap-1 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] transition-colors"
                           >
                             <Mail className="w-3 h-3" />
                             <span>Follow Up</span>
@@ -380,7 +381,7 @@ ${activeProfile?.email || ""}`;
                           onClick={() => handleAdvanceStatus(app.id)}
                           disabled={app.status === "OFFER"}
                           title="Advance to next stage"
-                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[10px] font-sans transition-colors"
+                          className="flex items-center gap-0.5 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10 text-[10px] transition-colors"
                         >
                           <span>Next</span>
                           <ChevronRight className="w-3 h-3" />
@@ -397,35 +398,35 @@ ${activeProfile?.email || ""}`;
 
       {/* Follow-Up Draft Modal */}
       {followupModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="w-full max-w-xl p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-xl p-6 rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <div className="flex items-center gap-2 text-sm font-bold text-white">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <Sparkles className="w-4 h-4 text-white" />
                 <span>Follow-Up Email Draft: {followupModal.company}</span>
               </div>
 
               <button
                 onClick={() => setFollowupModal({ ...followupModal, isOpen: false })}
-                className="text-slate-400 hover:text-slate-200 text-xs font-mono"
+                className="text-zinc-400 hover:text-white text-xs"
               >
-                Close ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-sans text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
+            <div className="p-4 rounded-xl bg-zinc-900 border border-white/[0.06] font-sans text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
               {followupModal.text}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={handleCopyText}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shadow-md shadow-indigo-600/20"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors shadow-md"
               >
                 {copied ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span className="text-emerald-400">Copied to Clipboard!</span>
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    <span className="text-emerald-700">Copied to Clipboard!</span>
                   </>
                 ) : (
                   <>
