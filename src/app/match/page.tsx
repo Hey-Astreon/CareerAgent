@@ -67,6 +67,7 @@ export default function MatchStudioPage() {
 
   const handleRunMatch = async (jobId: string) => {
     setSelectedJobId(jobId);
+    setMatchData(null);
     setIsEvaluating(true);
     try {
       const res = await fetch("/api/jobs/match", {

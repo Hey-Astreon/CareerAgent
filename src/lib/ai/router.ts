@@ -6,6 +6,20 @@ export interface LLMResponse {
 }
 
 /**
+ * Strips markdown code blocks (```json ... ```) to guarantee pure JSON string output.
+ */
+function cleanJsonResponse(rawText: string): string {
+  if (!rawText) return "";
+  let text = rawText.trim();
+
+  if (text.startsWith("```")) {
+    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  }
+
+  return text;
+}
+
+/**
  * Universal Multi-Provider LLM Router with zero-downtime automatic failover.
  * Priority Cascade: Groq (Ultra-Fast 500t/s) -> NVIDIA NIM (Llama 3.1 70B) -> Cerebras (GPT-OSS 120B) -> Gemini -> Fallback
  */
@@ -42,13 +56,13 @@ export async function queryMultiProviderLLM(
         }
       );
       const text = res.data?.choices?.[0]?.message?.content;
-      if (text) return { text, provider: "groq" };
+      if (text) return { text: cleanJsonResponse(text), provider: "groq" };
     } catch (err) {
       console.warn("[LLM Router Warning] Groq failed, falling over to NVIDIA NIM:", (err as Error).message);
     }
   }
 
-  // 2. Try NVIDIA NIM (Llama 3.1 70B Instruct - Verified 100%)
+  // 2. Try NVIDIA NIM (Llama 3.1 70B Instruct)
   if (nvidiaKey && !nvidiaKey.includes("YOUR_")) {
     try {
       const res = await axios.post(
@@ -70,7 +84,7 @@ export async function queryMultiProviderLLM(
         }
       );
       const text = res.data?.choices?.[0]?.message?.content;
-      if (text) return { text, provider: "nvidia" };
+      if (text) return { text: cleanJsonResponse(text), provider: "nvidia" };
     } catch (err) {
       console.warn("[LLM Router Warning] NVIDIA NIM failed, falling over to Cerebras:", (err as Error).message);
     }
@@ -98,7 +112,7 @@ export async function queryMultiProviderLLM(
         }
       );
       const text = res.data?.choices?.[0]?.message?.content;
-      if (text) return { text, provider: "cerebras" };
+      if (text) return { text: cleanJsonResponse(text), provider: "cerebras" };
     } catch (err) {
       console.warn("[LLM Router Warning] Cerebras failed, falling over to Gemini:", (err as Error).message);
     }
@@ -117,7 +131,7 @@ export async function queryMultiProviderLLM(
         { timeout: 10000 }
       );
       const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return { text, provider: "gemini" };
+      if (text) return { text: cleanJsonResponse(text), provider: "gemini" };
     } catch (err) {
       console.warn("[LLM Router Warning] Gemini failed:", (err as Error).message);
     }
