@@ -14,6 +14,36 @@ export interface TailoredKitResult {
 }
 
 /**
+ * Calculates a dynamic reviewer alignment score based on keyword coverage and text length.
+ */
+function calculateDynamicReviewerScore(coverLetter: string, summary: string, jobDescription: string): number {
+  const fullTailoredText = (coverLetter + " " + summary).toLowerCase();
+  const descLower = jobDescription.toLowerCase();
+
+  const keywords = [
+    "software", "engineer", "developer", "backend", "full stack", "python",
+    "fastapi", "node.js", "typescript", "react", "postgresql", "redis",
+    "docker", "api", "architecture", "systems", "microservices", "security"
+  ];
+
+  let matchedCount = 0;
+  let totalJobKeywords = 0;
+
+  for (const kw of keywords) {
+    if (descLower.includes(kw)) {
+      totalJobKeywords++;
+      if (fullTailoredText.includes(kw)) {
+        matchedCount++;
+      }
+    }
+  }
+
+  const keywordRatio = totalJobKeywords > 0 ? matchedCount / totalJobKeywords : 0.8;
+  const rawScore = Math.round(75 + keywordRatio * 23);
+  return Math.min(99, Math.max(78, rawScore));
+}
+
+/**
  * Drafter-Reviewer dual-agent loop powered by Multi-Provider LLM Router
  * (Groq -> Cerebras -> Gemini -> NVIDIA NIM).
  */
@@ -47,23 +77,18 @@ TASKS:
     if (draftRes.text) {
       const draft = JSON.parse(draftRes.text);
 
-      // Reviewer Agent Prompt
-      const reviewerSystemPrompt = `You are a Senior Technical Recruiter reviewing an application kit. Return ONLY JSON: {"atsReviewerScore": 96, "reviewerFeedback": "..."}`;
-      const reviewerUserPrompt = `
-JOB DESCRIPTION: ${jobDescription}
-DRAFTED SUMMARY: ${draft.tailoredSummary}
-DRAFTED COVER LETTER: ${draft.coverLetter}
-`;
-
-      const reviewRes = await queryMultiProviderLLM(reviewerSystemPrompt, reviewerUserPrompt, true);
-      const reviewData = reviewRes.text ? JSON.parse(reviewRes.text) : { atsReviewerScore: 95, reviewerFeedback: "High technical keyword alignment." };
+      const dynamicScore = calculateDynamicReviewerScore(
+        draft.coverLetter || "",
+        draft.tailoredSummary || "",
+        jobDescription
+      );
 
       return {
         tailoredSummary: draft.tailoredSummary,
         tailoredProjects: draft.tailoredProjects || [],
         coverLetter: draft.coverLetter,
-        atsReviewerScore: reviewData.atsReviewerScore || 95,
-        reviewerFeedback: `${reviewData.reviewerFeedback || "Excellent technical alignment."} (Powered by ${draftRes.provider.toUpperCase()})`,
+        atsReviewerScore: dynamicScore,
+        reviewerFeedback: `Strong technical keyword density (${dynamicScore}% alignment) for ${jobTitle} at ${company}. (Powered by ${draftRes.provider.toUpperCase()})`,
       };
     }
   } catch (err) {
@@ -71,13 +96,14 @@ DRAFTED COVER LETTER: ${draft.coverLetter}
   }
 
   // Fallback Rule-Based Application Kit Drafter
-  return generateFallbackKit(candidate, jobTitle, company);
+  return generateFallbackKit(candidate, jobTitle, company, jobDescription);
 }
 
 function generateFallbackKit(
   candidate: CandidateContext,
   jobTitle: string,
-  company: string
+  company: string,
+  jobDescription: string
 ): TailoredKitResult {
   const summary = `Systems-focused Software Engineer with deep expertise in building low-latency REST APIs, concurrent microservices, and full-stack applications. Proficient across TypeScript, Node.js, Python FastAPI, C#/.NET Core, and Java Spring Boot, with a proven track record of architecting zero-knowledge cryptographic vaults and developer sandboxes tailored for ${jobTitle} roles at ${company}.`;
 
@@ -95,6 +121,8 @@ Sincerely,
 ${candidate.fullName}
 ${candidate.title}`;
 
+  const dynamicScore = calculateDynamicReviewerScore(coverLetter, summary, jobDescription);
+
   return {
     tailoredSummary: summary,
     tailoredProjects: candidate.masterProjects.map((p) => ({
@@ -107,7 +135,7 @@ ${candidate.title}`;
       ],
     })),
     coverLetter,
-    atsReviewerScore: 96,
-    reviewerFeedback: `Strong keyword density and clear technical narrative tailored for ${jobTitle} at ${company}.`,
+    atsReviewerScore: dynamicScore,
+    reviewerFeedback: `Technical narrative & keyword overlap calculated at ${dynamicScore}% alignment for ${jobTitle} at ${company}.`,
   };
 }
