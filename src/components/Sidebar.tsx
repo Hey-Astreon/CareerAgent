@@ -7,7 +7,6 @@ import {
   Target,
   FileText,
   Kanban,
-  Settings,
   Sparkles,
 } from "lucide-react";
 
@@ -16,7 +15,6 @@ const navItems = [
   { name: "Fit & Match Studio", href: "/match", icon: Target },
   { name: "Application Drafter", href: "/drafter", icon: FileText },
   { name: "Funnel Tracker", href: "/tracker", icon: Kanban },
-  { name: "Workspace Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {
