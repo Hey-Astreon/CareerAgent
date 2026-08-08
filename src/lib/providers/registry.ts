@@ -12,6 +12,7 @@ import { WellfoundProvider } from "./wellfound";
 import { WorkableProvider } from "./workable";
 import { SmartRecruitersProvider } from "./smartrecruiters";
 import { RecruiteeProvider } from "./recruitee";
+import { HackerNewsProvider } from "./hackernews";
 import { generateUrlHash, computeDeduplicationKey, isDirectAtsUrl } from "./dedup";
 
 export const ACTIVE_PROVIDERS: JobSourceProvider[] = [
@@ -23,6 +24,7 @@ export const ACTIVE_PROVIDERS: JobSourceProvider[] = [
   new RecruiteeProvider(),
   new HimalayasProvider(),
   new RemotiveProvider(),
+  new HackerNewsProvider(),
   new LinkedInProvider(),
   new YCProvider(),
   new WellfoundProvider(),
