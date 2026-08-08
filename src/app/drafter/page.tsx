@@ -63,6 +63,7 @@ export default function ApplicationDrafterPage() {
 
   const handleGenerateKit = async (jobId: string) => {
     setSelectedJobId(jobId);
+    setKitData(null);
     setIsGenerating(true);
     try {
       const res = await fetch("/api/jobs/kit", {

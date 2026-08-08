@@ -59,8 +59,8 @@ export async function POST(req: Request) {
       job.rawDescription
     );
 
-    // Validate PDF extractability score
-    const atsCheck = await validatePDFExtractability(profile.masterResumePath);
+    // Validate PDF extractability score dynamically for this specific job
+    const atsCheck = await validatePDFExtractability(profile.masterResumePath, job.title, job.rawDescription);
 
     if (application) {
       application = await db.application.update({
