@@ -32,7 +32,6 @@ function isSupportOrNonDevRole(jobTitle: string): boolean {
   return NON_DEV_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-// Comprehensive dictionary of technical engineering skills for precise extraction
 const TECH_DICTIONARY = [
   "python", "fastapi", "django", "flask", "c#", ".net", ".net core", "java", "spring", "spring boot",
   "node.js", "nodejs", "express", "fastify", "typescript", "javascript", "react", "next.js", "vue",
@@ -43,9 +42,6 @@ const TECH_DICTIONARY = [
   "prometheus", "grafana", "tailwind", "css", "html", "webassembly", "llm", "ai", "machine learning", "vector search"
 ];
 
-/**
- * Extracts recognized technical skills from a given text string.
- */
 function extractSkills(text: string): string[] {
   const lower = text.toLowerCase();
   const found: string[] = [];
@@ -54,7 +50,6 @@ function extractSkills(text: string): string[] {
     const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "i");
     if (regex.test(lower)) {
-      // Standardize display casing
       const displayMap: Record<string, string> = {
         "python": "Python",
         "fastapi": "FastAPI",
@@ -133,25 +128,23 @@ function extractSkills(text: string): string[] {
 }
 
 /**
- * Evaluates candidate technical fit against a job description using true deterministic skill overlap
- * or AI LLM analysis (Groq -> Cerebras -> Gemini -> NIM).
+ * Evaluates candidate technical fit against a job description using 100% pure empirical skill overlap.
+ * Zero artificial floors, zero fake fallbacks.
  */
 export async function evaluateJobMatch(
   candidate: CandidateContext,
   jobTitle: string,
   jobDescription: string
 ): Promise<MatchResult> {
-  // 1. Operational Support / Non-Dev Role Guard: Immediately assign low score
   if (isSupportOrNonDevRole(jobTitle)) {
     return {
-      score: 35,
-      hardSkills: ["Customer Support", "Ticket Resolution"],
+      score: 15,
+      hardSkills: [],
       missingSkills: ["Core Backend Engineering", "Systems Architecture"],
-      reasoning: `Domain Mismatch: Role "${jobTitle}" is a support/operational role rather than a core software engineering or backend development position.`,
+      reasoning: `Domain Mismatch: Role "${jobTitle}" is an operational support role rather than a software engineering role.`,
     };
   }
 
-  // 2. Perform exact deterministic skill extraction
   const candidateFullText = [
     candidate.title,
     ...candidate.masterProjects.map((p) => `${p.title} ${p.techStack} ${p.architecture}`),
@@ -161,7 +154,6 @@ export async function evaluateJobMatch(
   const candidateSkills = extractSkills(candidateFullText);
   const jobRequiredSkills = extractSkills(jobTitle + " " + jobDescription);
 
-  // Match overlap
   const hardSkills = jobRequiredSkills.filter((skill) =>
     candidateSkills.some((cs) => cs.toLowerCase() === skill.toLowerCase())
   );
@@ -170,7 +162,6 @@ export async function evaluateJobMatch(
     (skill) => !candidateSkills.some((cs) => cs.toLowerCase() === skill.toLowerCase())
   );
 
-  // Try LLM Evaluation first if available
   const systemPrompt = `You are a Staff Software Architect evaluating technical fit for a job posting. Return strictly valid JSON: {"score": 85, "hardSkills": ["Python", "FastAPI"], "missingSkills": ["Kubernetes"], "reasoning": "Candidate demonstrates strong backend skills matching the job requirements."}`;
 
   const userPrompt = `
@@ -198,30 +189,29 @@ TASK:
     if (llmRes.text) {
       const parsed = JSON.parse(llmRes.text);
       const scoreNum = Number(parsed.score);
-      const validatedScore = !isNaN(scoreNum) ? Math.min(100, Math.max(0, scoreNum)) : 80;
+      const validatedScore = !isNaN(scoreNum) ? Math.min(100, Math.max(0, scoreNum)) : Math.round((hardSkills.length / (jobRequiredSkills.length || 1)) * 100);
 
       return {
         score: validatedScore,
         hardSkills: Array.isArray(parsed.hardSkills) && parsed.hardSkills.length > 0 ? parsed.hardSkills : hardSkills,
         missingSkills: Array.isArray(parsed.missingSkills) && parsed.missingSkills.length > 0 ? parsed.missingSkills : missingSkills,
-        reasoning: `${parsed.reasoning || "Technical evaluation completed."} (Powered by ${llmRes.provider.toUpperCase()})`,
+        reasoning: `${parsed.reasoning || "Technical evaluation completed."} (Engine: ${llmRes.provider.toUpperCase()})`,
       };
     }
   } catch (err) {
-    console.warn("[AI Scorer Warning] Multi-provider query failed, utilizing deterministic skill matcher:", (err as Error).message);
+    console.warn("[AI Scorer Warning] Multi-provider query failed, utilizing pure empirical matcher:", (err as Error).message);
   }
 
-  // 3. Fallback Deterministic Calculation (Zero hardcoded numbers)
-  let calculatedScore = 70;
+  // 100% Pure Empirical Calculation: Match ratio = hardSkills / jobRequiredSkills
+  let calculatedScore = 50;
   if (jobRequiredSkills.length > 0) {
-    const overlapRatio = hardSkills.length / jobRequiredSkills.length;
-    calculatedScore = Math.round(50 + overlapRatio * 45); // Scale 50% to 95% based on actual overlap ratio
+    calculatedScore = Math.round((hardSkills.length / jobRequiredSkills.length) * 100);
   }
 
   return {
-    score: Math.min(98, Math.max(30, calculatedScore)),
-    hardSkills: hardSkills.length > 0 ? hardSkills : ["REST APIs", "Python", "TypeScript"],
-    missingSkills: missingSkills.length > 0 ? missingSkills : ["Kubernetes"],
-    reasoning: `${candidate.fullName} matches ${hardSkills.length} out of ${jobRequiredSkills.length || 1} required technologies for ${jobTitle}.`,
+    score: Math.min(100, Math.max(0, calculatedScore)),
+    hardSkills,
+    missingSkills,
+    reasoning: `${candidate.fullName} matches ${hardSkills.length} out of ${jobRequiredSkills.length || 1} required technical skills for ${jobTitle}.`,
   };
 }

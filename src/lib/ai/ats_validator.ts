@@ -2,19 +2,20 @@ import fs from "fs";
 
 export interface ATSValidationResult {
   isParseable: boolean;
-  extractabilityScore: number; // Real dynamic job-specific score (e.g. 78%, 86%, 94%, 98%)
+  extractabilityScore: number; // 0% to 100% pure empirical calculation
   extractedCharCount: number;
   extractedTextSample: string;
   sectionHeadersFound: string[];
 }
 
-const REQUIRED_ATS_HEADERS = [
+const ATS_ESSENTIAL_HEADERS = [
   "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS", "SUMMARY", "WORK"
 ];
 
 /**
- * Calculates a dynamic, job-specific ATS Parseability score.
- * Combines native PDF text layer extraction quality with role-specific ATS keyword parsing.
+ * 100% Authentic, Pure Empirical ATS Parseability Calculator.
+ * Measures native PDF text layer extraction purity, section header presence,
+ * and exact job description keyword overlap without ANY artificial floors or hardcoded fallbacks.
  */
 export async function validatePDFExtractability(
   pdfPath: string,
@@ -26,7 +27,7 @@ export async function validatePDFExtractability(
       isParseable: false,
       extractabilityScore: 0,
       extractedCharCount: 0,
-      extractedTextSample: "PDF file does not exist on disk.",
+      extractedTextSample: "Error: PDF file missing from disk.",
       sectionHeadersFound: [],
     };
   }
@@ -35,7 +36,7 @@ export async function validatePDFExtractability(
     const buffer = fs.readFileSync(pdfPath);
     const pdfContent = buffer.toString("binary");
 
-    // Extract text snippets from PDF stream
+    // 1. Extract text stream contents from binary PDF
     const textSnippets: string[] = [];
     const textRegex = /\(([^)]+)\)\s*T[jd]/g;
     let match: RegExpExecArray | null;
@@ -47,7 +48,7 @@ export async function validatePDFExtractability(
     }
 
     let rawExtracted = textSnippets.join(" ");
-    if (rawExtracted.length < 100) {
+    if (rawExtracted.length < 50) {
       rawExtracted = pdfContent
         .replace(/[\r\n\t]/g, " ")
         .replace(/[^\x20-\x7E]/g, " ")
@@ -58,53 +59,60 @@ export async function validatePDFExtractability(
     const charCount = cleanText.length;
     const upperText = cleanText.toUpperCase();
 
-    const headersFound = REQUIRED_ATS_HEADERS.filter((header) =>
+    // 2. Identify ATS section headers present in the resume
+    const headersFound = ATS_ESSENTIAL_HEADERS.filter((header) =>
       upperText.includes(header)
     );
 
-    // Base text layer score (50 points max)
-    let baseScore = 40;
-    if (charCount > 2000) baseScore += 10;
-    else if (charCount > 1000) baseScore += 5;
-
-    // Calculate Role-Specific Keyword Match Ratio (50 points max)
-    const jobKeywords = (jobTitle + " " + jobDescription)
-      .toLowerCase()
+    // 3. Extract technical keywords from the job description
+    const fullJobText = (jobTitle + " " + jobDescription).toLowerCase();
+    const jobKeywords = fullJobText
       .split(/[^a-z0-9+#]+/)
-      .filter((w) => w.length >= 3);
+      .filter((w) => w.length >= 3 && !["and", "the", "for", "with", "you", "will", "our", "are", "have"].includes(w));
 
     const uniqueJobKeywords = Array.from(new Set(jobKeywords));
+
+    // 4. Calculate exact match count in PDF text
     let matchedCount = 0;
+    const resumeLower = cleanText.toLowerCase();
 
     if (uniqueJobKeywords.length > 0) {
       for (const kw of uniqueJobKeywords) {
-        if (cleanText.toLowerCase().includes(kw)) {
+        if (resumeLower.includes(kw)) {
           matchedCount++;
         }
       }
     }
 
-    const keywordRatio = uniqueJobKeywords.length > 0 ? matchedCount / uniqueJobKeywords.length : 0.7;
+    // 5. Compute Pure Empirical ATS Parseability Score (0% to 100%)
+    // Weight 1: Text Layer Readability (30%)
+    const textLayerScore = charCount > 1000 ? 30 : Math.round((charCount / 1000) * 30);
+
+    // Weight 2: Header Structure Coverage (20%)
+    const headerScore = Math.round((headersFound.length / ATS_ESSENTIAL_HEADERS.length) * 20);
+
+    // Weight 3: Exact Job Keyword Match Ratio (50%)
+    const keywordRatio = uniqueJobKeywords.length > 0 ? matchedCount / uniqueJobKeywords.length : 0;
     const keywordScore = Math.round(keywordRatio * 50);
 
-    // Compute dynamic, job-tailored ATS parseability score
-    const finalScore = Math.min(99, Math.max(68, baseScore + keywordScore));
+    // Pure mathematical total — NO artificial min/max floor!
+    const exactScore = Math.min(100, Math.max(0, textLayerScore + headerScore + keywordScore));
 
     return {
       isParseable: charCount > 100,
-      extractabilityScore: finalScore,
+      extractabilityScore: exactScore,
       extractedCharCount: charCount,
-      extractedTextSample: cleanText.substring(0, 250) + "...",
+      extractedTextSample: cleanText.substring(0, 200) + "...",
       sectionHeadersFound: headersFound,
     };
   } catch (err) {
-    console.warn("[ATS Validator Warning] Native PDF parsing error:", (err as Error).message);
+    console.error("Native PDF Extractability Error:", err);
     return {
-      isParseable: true,
-      extractabilityScore: 88,
-      extractedCharCount: 1500,
-      extractedTextSample: "Native PDF Binary Extractable Layer Verified.",
-      sectionHeadersFound: ["EXPERIENCE", "PROJECTS", "SKILLS"],
+      isParseable: false,
+      extractabilityScore: 0,
+      extractedCharCount: 0,
+      extractedTextSample: "PDF parsing failed.",
+      sectionHeadersFound: [],
     };
   }
 }

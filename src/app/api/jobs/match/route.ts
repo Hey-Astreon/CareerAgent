@@ -4,7 +4,7 @@ import { evaluateJobMatch } from "@/lib/ai/scorer";
 
 export async function POST(req: Request) {
   try {
-    const { profileSlug, jobPostingId } = await req.json();
+    const { profileSlug, jobPostingId, forceRefresh } = await req.json();
 
     if (!profileSlug || !jobPostingId) {
       return NextResponse.json(
@@ -25,33 +25,11 @@ export async function POST(req: Request) {
     if (!profile || !job) {
       return NextResponse.json(
         { success: false, error: "Profile or JobPosting not found" },
-        { status: 444 }
+        { status: 404 }
       );
     }
 
-    // Check if match score already evaluated
-    const existingScore = await db.matchScore.findUnique({
-      where: {
-        profileId_jobPostingId: {
-          profileId: profile.id,
-          jobPostingId: job.id,
-        },
-      },
-    });
-
-    if (existingScore) {
-      return NextResponse.json({
-        success: true,
-        matchScore: {
-          score: existingScore.score,
-          hardSkills: JSON.parse(existingScore.hardSkills),
-          missingSkills: JSON.parse(existingScore.missingSkills),
-          reasoning: existingScore.reasoning,
-        },
-      });
-    }
-
-    // Run semantic AI scorer
+    // Always run true empirical semantic AI scorer for 100% authentic evaluation
     const result = await evaluateJobMatch(
       {
         fullName: profile.fullName,
@@ -71,9 +49,21 @@ export async function POST(req: Request) {
       job.rawDescription
     );
 
-    // Save match score record
-    const matchRecord = await db.matchScore.create({
-      data: {
+    // Upsert fresh match score record in SQLite
+    const matchRecord = await db.matchScore.upsert({
+      where: {
+        profileId_jobPostingId: {
+          profileId: profile.id,
+          jobPostingId: job.id,
+        },
+      },
+      update: {
+        score: result.score,
+        hardSkills: JSON.stringify(result.hardSkills),
+        missingSkills: JSON.stringify(result.missingSkills),
+        reasoning: result.reasoning,
+      },
+      create: {
         profileId: profile.id,
         jobPostingId: job.id,
         score: result.score,

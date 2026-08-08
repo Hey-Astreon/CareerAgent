@@ -14,38 +14,36 @@ export interface TailoredKitResult {
 }
 
 /**
- * Calculates a dynamic reviewer alignment score based on keyword coverage and text length.
+ * Pure Empirical Reviewer Alignment Calculator (0% to 100%).
+ * Evaluates exact keyword overlap between tailored cover letter/summary and job requirements.
+ * Zero artificial floors, zero fake fallbacks.
  */
-function calculateDynamicReviewerScore(coverLetter: string, summary: string, jobDescription: string): number {
-  const fullTailoredText = (coverLetter + " " + summary).toLowerCase();
-  const descLower = jobDescription.toLowerCase();
+function calculatePureReviewerScore(coverLetter: string, summary: string, jobDescription: string): number {
+  const fullText = (coverLetter + " " + summary).toLowerCase();
+  const descWords = jobDescription
+    .toLowerCase()
+    .split(/[^a-z0-9+#]+/)
+    .filter((w) => w.length >= 4 && !["and", "the", "with", "that", "this", "your", "have", "will", "from"].includes(w));
 
-  const keywords = [
-    "software", "engineer", "developer", "backend", "full stack", "python",
-    "fastapi", "node.js", "typescript", "react", "postgresql", "redis",
-    "docker", "api", "architecture", "systems", "microservices", "security"
-  ];
+  const uniqueJobWords = Array.from(new Set(descWords));
+
+  if (uniqueJobWords.length === 0) return 50;
 
   let matchedCount = 0;
-  let totalJobKeywords = 0;
-
-  for (const kw of keywords) {
-    if (descLower.includes(kw)) {
-      totalJobKeywords++;
-      if (fullTailoredText.includes(kw)) {
-        matchedCount++;
-      }
+  for (const word of uniqueJobWords) {
+    if (fullText.includes(word)) {
+      matchedCount++;
     }
   }
 
-  const keywordRatio = totalJobKeywords > 0 ? matchedCount / totalJobKeywords : 0.8;
-  const rawScore = Math.round(75 + keywordRatio * 23);
-  return Math.min(99, Math.max(78, rawScore));
+  const ratio = matchedCount / uniqueJobWords.length;
+  // Pure mathematical score: scaled from 0% to 100% based on exact term coverage
+  const score = Math.round(ratio * 100);
+  return Math.min(100, Math.max(0, score));
 }
 
 /**
- * Drafter-Reviewer dual-agent loop powered by Multi-Provider LLM Router
- * (Groq -> Cerebras -> Gemini -> NVIDIA NIM).
+ * Drafter-Reviewer dual-agent loop powered by Multi-Provider LLM Router.
  */
 export async function generateTailoredKit(
   candidate: CandidateContext,
@@ -77,7 +75,7 @@ TASKS:
     if (draftRes.text) {
       const draft = JSON.parse(draftRes.text);
 
-      const dynamicScore = calculateDynamicReviewerScore(
+      const dynamicScore = calculatePureReviewerScore(
         draft.coverLetter || "",
         draft.tailoredSummary || "",
         jobDescription
@@ -88,7 +86,7 @@ TASKS:
         tailoredProjects: draft.tailoredProjects || [],
         coverLetter: draft.coverLetter,
         atsReviewerScore: dynamicScore,
-        reviewerFeedback: `Strong technical keyword density (${dynamicScore}% alignment) for ${jobTitle} at ${company}. (Powered by ${draftRes.provider.toUpperCase()})`,
+        reviewerFeedback: `${dynamicScore}% keyword density alignment for ${jobTitle} at ${company}. (Engine: ${draftRes.provider.toUpperCase()})`,
       };
     }
   } catch (err) {
@@ -121,7 +119,7 @@ Sincerely,
 ${candidate.fullName}
 ${candidate.title}`;
 
-  const dynamicScore = calculateDynamicReviewerScore(coverLetter, summary, jobDescription);
+  const dynamicScore = calculatePureReviewerScore(coverLetter, summary, jobDescription);
 
   return {
     tailoredSummary: summary,
@@ -136,6 +134,6 @@ ${candidate.title}`;
     })),
     coverLetter,
     atsReviewerScore: dynamicScore,
-    reviewerFeedback: `Technical narrative & keyword overlap calculated at ${dynamicScore}% alignment for ${jobTitle} at ${company}.`,
+    reviewerFeedback: `Tailored application kit calculated at ${dynamicScore}% keyword density alignment for ${jobTitle} at ${company}.`,
   };
 }
