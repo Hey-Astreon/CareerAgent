@@ -3,7 +3,6 @@ import { PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import {
   cleanCompanySlug,
-  cleanHtmlText,
   determineCategory,
   determineJobType,
   determineExperienceLevel,
@@ -11,6 +10,17 @@ import {
   parseRemoteScope,
   determineOpportunitySignals,
 } from "./normalize";
+
+interface SimplifyListing {
+  id?: string;
+  title?: string;
+  company_name?: string;
+  active?: boolean;
+  date_posted?: number;
+  url?: string;
+  locations?: string[];
+  company_url?: string;
+}
 
 export class SimplifyProvider implements JobSourceProvider {
   name = "Simplify Jobs";
@@ -23,61 +33,53 @@ export class SimplifyProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    try {
-      // Simplify public API endpoint for tech internships & new grad software developer positions
-      const apiUrl = "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/main/README.md";
-      const res = await axios.get(apiUrl, {
-        headers: {
-          "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
-        },
-        timeout: 10000,
-        validateStatus: () => true,
-      });
+    const dataEndpoints = [
+      "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+      "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/.github/scripts/listings.json",
+      "https://raw.githubusercontent.com/SimplifyJobs/Summer2025-Internships/dev/.github/scripts/listings.json",
+    ];
 
-      if (typeof res.data === "string") {
-        // Parse GitHub markdown table rows: | Company | Role | Location | Application Link | Date |
-        const lines = res.data.split("\n");
-        for (const line of lines) {
-          if (!line.startsWith("|") || line.includes("---") || line.includes("Company")) continue;
+    for (const endpoint of dataEndpoints) {
+      try {
+        const res = await axios.get<SimplifyListing[]>(endpoint, {
+          headers: {
+            "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
+            "Accept": "application/json",
+          },
+          timeout: 10000,
+        });
 
-          const cols = line.split("|").map((c) => c.trim()).filter(Boolean);
-          if (cols.length >= 4) {
+        if (Array.isArray(res.data)) {
+          for (const item of res.data) {
+            // Skip inactive positions
+            if (item.active === false) continue;
+
             discoveredCount++;
+            const titleRaw = item.title || "";
+            const companyRaw = item.company_name || "Simplify Tech";
+            const discoveryUrl = item.url || item.company_url || "https://simplify.jobs";
 
-            // Extract company name and clean markdown links e.g. **[Company](url)**
-            const companyRaw = cols[0].replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[\*\_\`]/g, "").trim();
-            const titleRaw = cols[1].replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[\*\_\`]/g, "").trim();
-            const locationRaw = cols[2].replace(/[\*\_\`]/g, "").trim();
-            
-            // Extract application URL from link match e.g. [Apply](https://...)
-            const urlMatch = cols[3].match(/\((https?:\/\/[^\)]+)\)/);
-            const discoveryUrl = urlMatch ? urlMatch[1] : "https://simplify.jobs";
+            const rawLocs = item.locations && item.locations.length > 0 ? item.locations.join(", ") : "Worldwide";
+            const location = rawLocs.toLowerCase().includes("remote") ? rawLocs : `Remote (${rawLocs})`;
 
-            if (!isStrictlyRemoteDeveloperRole(titleRaw, locationRaw, `${titleRaw} ${companyRaw}`)) {
+            if (!isStrictlyRemoteDeveloperRole(titleRaw, location, `${titleRaw} at ${companyRaw}`)) {
               rejectedCount++;
               continue;
             }
 
-            const dateCol = cols[4] ? cols[4].replace(/[\*\_\`]/g, "").trim() : "";
-            let postedAt: Date | null = null;
-            if (dateCol) {
-              const parsedDate = new Date(`${dateCol}, ${new Date().getFullYear()}`);
-              if (!isNaN(parsedDate.getTime())) {
-                postedAt = parsedDate;
-              }
-            }
-
             const { company, companySlug } = cleanCompanySlug(companyRaw);
-            const remoteScope = parseRemoteScope(locationRaw, titleRaw);
+            const postedAt = item.date_posted ? new Date(item.date_posted * 1000) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
+            const remoteScope = parseRemoteScope(location, titleRaw);
             const opportunitySignals = determineOpportunitySignals({
-              postedAt,
+              postedAt: validPostedAt,
               applicationUrlType: "DIRECT_ATS",
               canonicalAppUrl: discoveryUrl,
               providerKey: PlatformSource.SIMPLIFY,
             });
 
             jobs.push({
-              sourceJobId: `${companySlug}-${titleRaw.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+              sourceJobId: item.id || `${companySlug}-${titleRaw.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
               providerKey: PlatformSource.SIMPLIFY,
               company,
               companySlug,
@@ -85,24 +87,27 @@ export class SimplifyProvider implements JobSourceProvider {
               category: determineCategory(titleRaw, ""),
               jobType: determineJobType(titleRaw, ""),
               experienceLevel: determineExperienceLevel(titleRaw, ""),
-              location: locationRaw ? `Remote (${locationRaw})` : "Remote",
+              location,
               isRemote: true,
-              remoteRegion: locationRaw.includes("Worldwide") || !locationRaw ? "Worldwide" : locationRaw,
+              remoteRegion: rawLocs.includes("Worldwide") || !rawLocs ? "Worldwide" : rawLocs,
               remoteScope,
               discoveryUrl,
               canonicalAppUrl: discoveryUrl,
               applicationUrlType: "DIRECT_ATS",
               verificationStatus: "VERIFIED_DIRECT_ATS",
-              postedAt,
+              postedAt: validPostedAt,
               opportunitySignals,
               rawDescription: `${titleRaw} at ${company}. Direct early-career software engineering opportunity listed on Simplify.`,
               hasFullText: true,
             });
+
+            // Limit per repository endpoint to prevent memory overload
+            if (jobs.length >= 100) break;
           }
         }
+      } catch (err) {
+        console.warn(`[Simplify Provider Warning] Endpoint "${endpoint}" failed:`, (err as Error).message);
       }
-    } catch (err) {
-      console.warn("[Simplify Provider Warning] Request failed:", (err as Error).message);
     }
 
     return {

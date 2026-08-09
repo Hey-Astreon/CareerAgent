@@ -1,124 +1,101 @@
+import axios from "axios";
 import { PlatformSource } from "@prisma/client";
-import { JobSourceProvider, ProviderResult, NormalizedJob } from "./types";
+import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import {
-  isStrictlyRemoteDeveloperRole,
+  cleanCompanySlug,
+  cleanHtmlText,
   determineCategory,
-  determineExperienceLevel,
   determineJobType,
+  determineExperienceLevel,
+  isStrictlyRemoteDeveloperRole,
   parseRemoteScope,
   determineOpportunitySignals,
 } from "./normalize";
 
-interface JobicyItem {
-  id: number;
-  url: string;
-  jobTitle: string;
-  companyName: string;
-  jobGeo?: string;
-  jobLevel?: string;
-  pubDate?: string;
-  jobDescription?: string;
-}
-
 export class JobicyProvider implements JobSourceProvider {
-  name = "Jobicy";
+  name = "Jobicy Remote";
   providerKey = PlatformSource.JOBICY;
-  timeoutMs = 8000;
+  timeoutMs = 15000;
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
     const jobs: NormalizedJob[] = [];
-    let jobsDiscovered = 0;
-    let jobsRejected = 0;
+    let discoveredCount = 0;
+    let rejectedCount = 0;
 
     try {
-      const response = await fetch("https://jobicy.com/api/v2/remote-jobs?count=50", {
+      const apiUrl = "https://jobicy.com/api/v2/remote-jobs?count=100";
+      const res = await axios.get(apiUrl, {
         headers: {
-          "User-Agent": "CareerAgent/2.0 (Verified Job Discovery Engine)",
+          "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
+          "Accept": "application/json",
         },
-        signal: AbortSignal.timeout(this.timeoutMs),
+        timeout: 10000,
       });
 
-      if (!response.ok) {
-        return {
-          providerKey: this.providerKey,
-          jobs: [],
-          success: false,
-          error: `HTTP ${response.status}`,
-          durationMs: Date.now() - startTime,
-          jobsDiscovered: 0,
-          jobsRejected: 0,
-        };
-      }
+      const rawJobs = res.data?.jobs;
+      if (Array.isArray(rawJobs)) {
+        for (const item of rawJobs) {
+          discoveredCount++;
+          const title = item.jobTitle || "";
+          const companyName = item.companyName || "Jobicy Company";
+          const rawGeo = item.jobGeo || "";
+          const location = rawGeo ? (rawGeo.toLowerCase().includes("remote") ? rawGeo : `Remote (${rawGeo})`) : "Remote (Worldwide)";
+          const rawDesc = cleanHtmlText(item.jobDescription || item.jobExcerpt || "");
+          const discoveryUrl = item.url || item.jobUrl || "https://jobicy.com";
+          const canonicalAppUrl = discoveryUrl;
 
-      const data = await response.json();
-      const items: JobicyItem[] = data.jobs || [];
+          if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
+            rejectedCount++;
+            continue;
+          }
 
-      for (const item of items) {
-        jobsDiscovered++;
-        const title = item.jobTitle;
-        const company = item.companyName;
-        const location = item.jobGeo || "Worldwide";
-        const rawDesc = (item.jobDescription || "").replace(/<[^>]*>?/gm, " ").trim();
+          const { company, companySlug } = cleanCompanySlug(companyName);
+          const postedAt = item.pubDate ? new Date(item.pubDate) : null;
+          const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
+          const remoteScope = parseRemoteScope(location, rawDesc);
+          const opportunitySignals = determineOpportunitySignals({
+            postedAt: validPostedAt,
+            applicationUrlType: "AGGREGATOR_PAGE",
+            canonicalAppUrl,
+            providerKey: PlatformSource.JOBICY,
+          });
 
-        if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
-          jobsRejected++;
-          continue;
+          jobs.push({
+            sourceJobId: item.id ? String(item.id) : `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+            providerKey: PlatformSource.JOBICY,
+            company,
+            companySlug,
+            title,
+            category: determineCategory(title, rawDesc),
+            jobType: determineJobType(title, rawDesc),
+            experienceLevel: determineExperienceLevel(title, rawDesc),
+            location,
+            isRemote: true,
+            remoteRegion: rawGeo || "Worldwide",
+            remoteScope,
+            discoveryUrl,
+            canonicalAppUrl,
+            applicationUrlType: "AGGREGATOR_PAGE",
+            verificationStatus: "VERIFIED_AGGREGATOR",
+            postedAt: validPostedAt,
+            opportunitySignals,
+            rawDescription: rawDesc || `${title} at ${company}. Remote developer position on Jobicy.`,
+            hasFullText: rawDesc.length > 50,
+          });
         }
-
-        const companySlug = company.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const postedAt = item.pubDate ? new Date(item.pubDate) : null;
-        const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
-
-        const remoteScope = parseRemoteScope(location, rawDesc);
-        const opportunitySignals = determineOpportunitySignals({
-          postedAt: validPostedAt,
-          applicationUrlType: "DIRECT_EMPLOYER_SITE",
-          canonicalAppUrl: item.url,
-          providerKey: this.providerKey,
-        });
-
-        jobs.push({
-          sourceJobId: String(item.id),
-          providerKey: this.providerKey,
-          company,
-          companySlug,
-          title,
-          category: determineCategory(title, rawDesc),
-          jobType: determineJobType(title, rawDesc),
-          experienceLevel: determineExperienceLevel(title, rawDesc),
-          location,
-          isRemote: true,
-          remoteScope,
-          discoveryUrl: item.url,
-          canonicalAppUrl: item.url,
-          applicationUrlType: "DIRECT_EMPLOYER_SITE",
-          verificationStatus: "VERIFIED_AGGREGATOR",
-          postedAt: validPostedAt,
-          opportunitySignals,
-          rawDescription: rawDesc || `${title} at ${company}. Listed on Jobicy.`,
-          hasFullText: rawDesc.length > 50,
-        });
       }
-
-      return {
-        providerKey: this.providerKey,
-        jobs,
-        success: true,
-        durationMs: Date.now() - startTime,
-        jobsDiscovered,
-        jobsRejected,
-      };
     } catch (err) {
-      return {
-        providerKey: this.providerKey,
-        jobs: [],
-        success: false,
-        error: (err as Error).message,
-        durationMs: Date.now() - startTime,
-        jobsDiscovered: 0,
-        jobsRejected: 0,
-      };
+      console.warn("[Jobicy Provider Warning] Request failed:", (err as Error).message);
     }
+
+    return {
+      providerKey: this.providerKey,
+      jobs,
+      success: true,
+      durationMs: Date.now() - startTime,
+      jobsDiscovered: discoveredCount,
+      jobsRejected: rejectedCount,
+    };
   }
 }
