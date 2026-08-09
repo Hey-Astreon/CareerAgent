@@ -1,9 +1,9 @@
 import axios from "axios";
+import * as cheerio from "cheerio";
 import { PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import {
   cleanCompanySlug,
-  cleanHtmlText,
   determineCategory,
   determineJobType,
   determineExperienceLevel,
@@ -23,69 +23,75 @@ export class TheHubProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    try {
-      // TheHub.io API endpoint for startup engineering jobs
-      const apiUrl = "https://thehub.io/api/jobs?category=engineering&remote=true";
-      const res = await axios.get(apiUrl, {
-        headers: {
-          "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
-          "Accept": "application/json",
-        },
-        timeout: 10000,
-        validateStatus: () => true,
-      });
+    const urls = [
+      "https://thehub.io/jobs?roles=software-engineering",
+      "https://thehub.io/jobs?roles=web-development",
+    ];
 
-      const items = Array.isArray(res.data?.docs) ? res.data.docs : Array.isArray(res.data?.jobs) ? res.data.jobs : Array.isArray(res.data) ? res.data : [];
+    for (const targetUrl of urls) {
+      try {
+        const res = await axios.get(targetUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+          },
+          timeout: 8000,
+        });
 
-      for (const item of items) {
-        discoveredCount++;
-        const title = item.title || item.role || "";
-        const companyName = item.company?.name || item.companyName || "TheHub Startup";
-        const location = item.location || "Remote";
-        const rawDesc = cleanHtmlText(item.description || item.body || "");
-        const discoveryUrl = item.id ? `https://thehub.io/jobs/${item.id}` : "https://thehub.io";
+        if (res.data) {
+          const $ = cheerio.load(res.data);
+          $(".job-card, [class*='JobCard'], a[href*='/jobs/']").each((_, element) => {
+            discoveredCount++;
+            const title = $(element).find("h3, h4, .job-title, [class*='title']").first().text().trim() || $(element).text().trim();
+            const companyName = $(element).find(".company-name, [class*='company']").first().text().trim() || "TheHub Startup";
+            const link = $(element).attr("href") || $(element).find("a").attr("href");
 
-        if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
-          rejectedCount++;
-          continue;
+            if (title && title.length < 80 && link && link.includes("/jobs/")) {
+              const fullUrl = link.startsWith("http") ? link : `https://thehub.io${link}`;
+              const location = "Remote (Worldwide)";
+
+              if (!isStrictlyRemoteDeveloperRole(title, location, `${title} at ${companyName}`)) {
+                rejectedCount++;
+                return;
+              }
+
+              const { company, companySlug } = cleanCompanySlug(companyName);
+              const remoteScope = parseRemoteScope(location, title);
+              const opportunitySignals = determineOpportunitySignals({
+                postedAt: null,
+                applicationUrlType: "AGGREGATOR_PAGE",
+                canonicalAppUrl: fullUrl,
+                providerKey: PlatformSource.THEHUB,
+              });
+
+              jobs.push({
+                sourceJobId: fullUrl.split("/").filter(Boolean).pop() || `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+                providerKey: PlatformSource.THEHUB,
+                company,
+                companySlug,
+                title,
+                category: determineCategory(title, ""),
+                jobType: determineJobType(title, ""),
+                experienceLevel: determineExperienceLevel(title, ""),
+                location,
+                isRemote: true,
+                remoteRegion: "Worldwide",
+                remoteScope,
+                discoveryUrl: fullUrl,
+                canonicalAppUrl: fullUrl,
+                applicationUrlType: "AGGREGATOR_PAGE",
+                verificationStatus: "VERIFIED_AGGREGATOR",
+                postedAt: null,
+                opportunitySignals,
+                rawDescription: `${title} at ${company}. Direct startup developer posting on TheHub.io.`,
+                hasFullText: false,
+              });
+            }
+          });
         }
-
-        const { company, companySlug } = cleanCompanySlug(companyName);
-        const postedAt = item.createdAt ? new Date(item.createdAt) : null;
-        const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
-        const remoteScope = parseRemoteScope(location, rawDesc);
-        const opportunitySignals = determineOpportunitySignals({
-          postedAt: validPostedAt,
-          applicationUrlType: "DIRECT_EMPLOYER_SITE",
-          canonicalAppUrl: discoveryUrl,
-          providerKey: PlatformSource.THEHUB,
-        });
-
-        jobs.push({
-          sourceJobId: item.id ? String(item.id) : `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
-          providerKey: PlatformSource.THEHUB,
-          company,
-          companySlug,
-          title,
-          category: determineCategory(title, rawDesc),
-          jobType: determineJobType(title, rawDesc),
-          experienceLevel: determineExperienceLevel(title, rawDesc),
-          location: location.includes("Remote") ? location : `Remote (${location})`,
-          isRemote: true,
-          remoteRegion: location.includes("Worldwide") || !location ? "Worldwide" : location,
-          remoteScope,
-          discoveryUrl,
-          canonicalAppUrl: discoveryUrl,
-          applicationUrlType: "DIRECT_EMPLOYER_SITE",
-          verificationStatus: "VERIFIED_AGGREGATOR",
-          postedAt: validPostedAt,
-          opportunitySignals,
-          rawDescription: rawDesc || `${title} at ${company}. Direct startup developer position listed on TheHub.io.`,
-          hasFullText: rawDesc.length > 50,
-        });
+      } catch (err) {
+        console.warn(`[TheHub Provider Warning] URL "${targetUrl}" failed:`, (err as Error).message);
       }
-    } catch (err) {
-      console.warn("[TheHub.io Provider Warning] Request failed:", (err as Error).message);
     }
 
     return {

@@ -1,9 +1,9 @@
 import axios from "axios";
+import * as cheerio from "cheerio";
 import { PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import {
   cleanCompanySlug,
-  cleanHtmlText,
   determineCategory,
   determineJobType,
   determineExperienceLevel,
@@ -13,7 +13,7 @@ import {
 } from "./normalize";
 
 export class BuiltInProvider implements JobSourceProvider {
-  name = "Built In";
+  name = "Built In Remote";
   providerKey = PlatformSource.BUILTIN;
   timeoutMs = 15000;
 
@@ -23,69 +23,78 @@ export class BuiltInProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    try {
-      // Built In tech startup jobs API
-      const apiUrl = "https://builtin.com/api/jobs?category=developer&location=remote";
-      const res = await axios.get(apiUrl, {
-        headers: {
-          "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
-          "Accept": "application/json",
-        },
-        timeout: 10000,
-        validateStatus: () => true,
-      });
+    const urls = [
+      "https://builtin.com/jobs/remote/dev-engineering",
+      "https://builtin.com/jobs/remote/entry-level/dev-engineering",
+    ];
 
-      const items = Array.isArray(res.data?.jobs) ? res.data.jobs : Array.isArray(res.data) ? res.data : [];
+    for (const url of urls) {
+      try {
+        const res = await axios.get(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+          },
+          timeout: 8000,
+        });
 
-      for (const item of items) {
-        discoveredCount++;
-        const title = item.title || item.role || "";
-        const companyName = item.company?.name || item.company_name || "Built In Tech Startup";
-        const location = item.location || "Remote";
-        const rawDesc = cleanHtmlText(item.description || "");
-        const discoveryUrl = item.alias ? `https://builtin.com/${item.alias}` : item.url || "https://builtin.com";
+        if (res.data) {
+          const $ = cheerio.load(res.data);
+          $("[data-id='job-card']").each((_, element) => {
+            discoveredCount++;
+            const titleEl = $(element).find("a[data-id='job-card-title']").first();
+            const rawTitle = titleEl.text().trim() || $(element).find("h2").first().text().trim();
+            const companyName = $(element).find("[data-id='company-name']").first().text().trim() || "Built In Tech";
+            const link = titleEl.attr("href") || $(element).find("a[href*='/job/']").first().attr("href");
+            const locationRaw = $(element).find("[data-id='job-location']").first().text().trim() || "Remote";
 
-        if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
-          rejectedCount++;
-          continue;
+            if (rawTitle && link) {
+              const title = rawTitle.replace(/\s+/g, " ").trim();
+              const fullUrl = link.startsWith("http") ? link : `https://builtin.com${link}`;
+              const location = locationRaw.toLowerCase().includes("remote") ? locationRaw : `Remote (${locationRaw})`;
+
+              if (!isStrictlyRemoteDeveloperRole(title, location, `${title} at ${companyName}`)) {
+                rejectedCount++;
+                return;
+              }
+
+              const { company, companySlug } = cleanCompanySlug(companyName);
+              const remoteScope = parseRemoteScope(location, title);
+              const opportunitySignals = determineOpportunitySignals({
+                postedAt: null,
+                applicationUrlType: "AGGREGATOR_PAGE",
+                canonicalAppUrl: fullUrl,
+                providerKey: PlatformSource.BUILTIN,
+              });
+
+              jobs.push({
+                sourceJobId: link.split("/").filter(Boolean).pop() || `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+                providerKey: PlatformSource.BUILTIN,
+                company,
+                companySlug,
+                title,
+                category: determineCategory(title, ""),
+                jobType: determineJobType(title, ""),
+                experienceLevel: determineExperienceLevel(title, ""),
+                location,
+                isRemote: true,
+                remoteRegion: locationRaw,
+                remoteScope,
+                discoveryUrl: fullUrl,
+                canonicalAppUrl: fullUrl,
+                applicationUrlType: "AGGREGATOR_PAGE",
+                verificationStatus: "VERIFIED_AGGREGATOR",
+                postedAt: null,
+                opportunitySignals,
+                rawDescription: `${title} at ${company}. Direct tech position listed on Built In Remote.`,
+                hasFullText: false,
+              });
+            }
+          });
         }
-
-        const { company, companySlug } = cleanCompanySlug(companyName);
-        const postedAt = item.created_at ? new Date(item.created_at) : null;
-        const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
-        const remoteScope = parseRemoteScope(location, rawDesc);
-        const opportunitySignals = determineOpportunitySignals({
-          postedAt: validPostedAt,
-          applicationUrlType: "DIRECT_ATS",
-          canonicalAppUrl: discoveryUrl,
-          providerKey: PlatformSource.BUILTIN,
-        });
-
-        jobs.push({
-          sourceJobId: item.id ? String(item.id) : `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
-          providerKey: PlatformSource.BUILTIN,
-          company,
-          companySlug,
-          title,
-          category: determineCategory(title, rawDesc),
-          jobType: determineJobType(title, rawDesc),
-          experienceLevel: determineExperienceLevel(title, rawDesc),
-          location: location.includes("Remote") ? location : `Remote (${location})`,
-          isRemote: true,
-          remoteRegion: location.includes("Worldwide") || !location ? "Worldwide" : location,
-          remoteScope,
-          discoveryUrl,
-          canonicalAppUrl: discoveryUrl,
-          applicationUrlType: "DIRECT_ATS",
-          verificationStatus: "VERIFIED_DIRECT_ATS",
-          postedAt: validPostedAt,
-          opportunitySignals,
-          rawDescription: rawDesc || `${title} at ${company}. Tech startup engineering role on Built In.`,
-          hasFullText: rawDesc.length > 50,
-        });
+      } catch (err) {
+        console.warn(`[BuiltIn Provider Warning] URL "${url}" failed:`, (err as Error).message);
       }
-    } catch (err) {
-      console.warn("[Built In Provider Warning] Request failed:", (err as Error).message);
     }
 
     return {

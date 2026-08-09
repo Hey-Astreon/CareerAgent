@@ -1,9 +1,9 @@
 import axios from "axios";
+import * as cheerio from "cheerio";
 import { PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import {
   cleanCompanySlug,
-  cleanHtmlText,
   determineCategory,
   determineJobType,
   determineExperienceLevel,
@@ -23,69 +23,75 @@ export class TrueUpProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    try {
-      // TrueUp API endpoint for tech roles
-      const apiUrl = "https://www.trueup.io/api/jobs?limit=50&experience=entry";
-      const res = await axios.get(apiUrl, {
-        headers: {
-          "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
-          "Accept": "application/json",
-        },
-        timeout: 10000,
-        validateStatus: () => true,
-      });
+    const urls = [
+      "https://www.trueup.io/jobs?remote=true",
+      "https://www.trueup.io/jobs?title=software+engineer",
+    ];
 
-      const items = Array.isArray(res.data?.jobs) ? res.data.jobs : Array.isArray(res.data) ? res.data : [];
+    for (const targetUrl of urls) {
+      try {
+        const res = await axios.get(targetUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+          },
+          timeout: 8000,
+        });
 
-      for (const item of items) {
-        discoveredCount++;
-        const title = item.title || item.role || "";
-        const companyName = item.company?.name || item.company_name || "TrueUp Tech Company";
-        const location = item.location || "Remote";
-        const rawDesc = cleanHtmlText(item.description || "");
-        const discoveryUrl = item.url || item.apply_url || "https://www.trueup.io";
+        if (res.data) {
+          const $ = cheerio.load(res.data);
+          $("a[href*='/job/'], tr, div[class*='job']").each((_, element) => {
+            discoveredCount++;
+            const title = $(element).find("h3, h4, [class*='title']").first().text().trim() || $(element).text().trim();
+            const companyName = $(element).find("[class*='company']").first().text().trim() || "TrueUp Company";
+            const link = $(element).attr("href") || $(element).find("a").attr("href");
 
-        if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
-          rejectedCount++;
-          continue;
+            if (title && title.length < 80 && link && link.includes("/job/")) {
+              const fullUrl = link.startsWith("http") ? link : `https://www.trueup.io${link}`;
+              const location = "Remote (Worldwide)";
+
+              if (!isStrictlyRemoteDeveloperRole(title, location, `${title} at ${companyName}`)) {
+                rejectedCount++;
+                return;
+              }
+
+              const { company, companySlug } = cleanCompanySlug(companyName);
+              const remoteScope = parseRemoteScope(location, title);
+              const opportunitySignals = determineOpportunitySignals({
+                postedAt: null,
+                applicationUrlType: "AGGREGATOR_PAGE",
+                canonicalAppUrl: fullUrl,
+                providerKey: PlatformSource.TRUEUP,
+              });
+
+              jobs.push({
+                sourceJobId: fullUrl.split("/").filter(Boolean).pop() || `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+                providerKey: PlatformSource.TRUEUP,
+                company,
+                companySlug,
+                title,
+                category: determineCategory(title, ""),
+                jobType: determineJobType(title, ""),
+                experienceLevel: determineExperienceLevel(title, ""),
+                location,
+                isRemote: true,
+                remoteRegion: "Worldwide",
+                remoteScope,
+                discoveryUrl: fullUrl,
+                canonicalAppUrl: fullUrl,
+                applicationUrlType: "AGGREGATOR_PAGE",
+                verificationStatus: "VERIFIED_AGGREGATOR",
+                postedAt: null,
+                opportunitySignals,
+                rawDescription: `${title} at ${company}. Direct tech job posting listed on TrueUp Tech.`,
+                hasFullText: false,
+              });
+            }
+          });
         }
-
-        const { company, companySlug } = cleanCompanySlug(companyName);
-        const postedAt = item.created_at ? new Date(item.created_at) : null;
-        const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
-        const remoteScope = parseRemoteScope(location, rawDesc);
-        const opportunitySignals = determineOpportunitySignals({
-          postedAt: validPostedAt,
-          applicationUrlType: "DIRECT_EMPLOYER_SITE",
-          canonicalAppUrl: discoveryUrl,
-          providerKey: PlatformSource.TRUEUP,
-        });
-
-        jobs.push({
-          sourceJobId: item.id ? String(item.id) : `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
-          providerKey: PlatformSource.TRUEUP,
-          company,
-          companySlug,
-          title,
-          category: determineCategory(title, rawDesc),
-          jobType: determineJobType(title, rawDesc),
-          experienceLevel: determineExperienceLevel(title, rawDesc),
-          location: location.includes("Remote") ? location : `Remote (${location})`,
-          isRemote: true,
-          remoteRegion: location.includes("Worldwide") || !location ? "Worldwide" : location,
-          remoteScope,
-          discoveryUrl,
-          canonicalAppUrl: discoveryUrl,
-          applicationUrlType: "DIRECT_EMPLOYER_SITE",
-          verificationStatus: "VERIFIED_AGGREGATOR",
-          postedAt: validPostedAt,
-          opportunitySignals,
-          rawDescription: rawDesc || `${title} at ${company}. Active software engineering role listed on TrueUp.io.`,
-          hasFullText: rawDesc.length > 50,
-        });
+      } catch (err) {
+        console.warn(`[TrueUp Provider Warning] URL "${targetUrl}" failed:`, (err as Error).message);
       }
-    } catch (err) {
-      console.warn("[TrueUp Provider Warning] Request failed:", (err as Error).message);
     }
 
     return {

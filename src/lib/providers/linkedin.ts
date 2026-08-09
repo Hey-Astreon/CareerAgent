@@ -13,9 +13,9 @@ import {
 } from "./normalize";
 
 export class LinkedInProvider implements JobSourceProvider {
-  name = "LinkedIn Jobs (Guest)";
+  name = "LinkedIn Jobs";
   providerKey = PlatformSource.LINKEDIN;
-  timeoutMs = 8000;
+  timeoutMs = 15000;
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
@@ -23,9 +23,9 @@ export class LinkedInProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    const targetQueries = ["software engineer", "frontend developer", "backend engineer"];
+    const queries = ["software engineer", "full stack developer", "backend engineer", "frontend developer"];
 
-    for (const query of targetQueries) {
+    for (const query of queries) {
       try {
         const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodeURIComponent(query)}&location=Worldwide&f_WT=2&start=0`;
         const res = await axios.get(url, {
@@ -33,7 +33,7 @@ export class LinkedInProvider implements JobSourceProvider {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
           },
-          timeout: 4000,
+          timeout: 6000,
         });
 
         if (res.data) {
@@ -52,7 +52,6 @@ export class LinkedInProvider implements JobSourceProvider {
               const jobId = match ? match[1] : undefined;
               const rawLocLower = rawLocation.toLowerCase();
 
-              // Explicitly reject any LinkedIn posting that mentions on-site, hybrid, or in-office
               if (
                 rawLocLower.includes("on-site") ||
                 rawLocLower.includes("onsite") ||
@@ -64,13 +63,15 @@ export class LinkedInProvider implements JobSourceProvider {
                 return;
               }
 
-              // Use rawLocation directly for remote role validation
-              if (!isStrictlyRemoteDeveloperRole(title, rawLocation, title)) {
+              // Prepend Remote prefix for LinkedIn remote search results
+              const location = rawLocation
+                ? (rawLocLower.includes("remote") ? rawLocation : `Remote (${rawLocation})`)
+                : "Remote (Worldwide)";
+
+              if (!isStrictlyRemoteDeveloperRole(title, location, title)) {
                 rejectedCount++;
                 return;
               }
-
-              const location = rawLocation ? (rawLocLower.includes("remote") ? rawLocation : `Remote (${rawLocation})`) : "Remote";
 
               const { company, companySlug } = cleanCompanySlug(companyName);
               const postedAt = datetime ? new Date(datetime) : null;
@@ -84,17 +85,17 @@ export class LinkedInProvider implements JobSourceProvider {
               });
 
               jobs.push({
-                sourceJobId: jobId,
+                sourceJobId: jobId || `${companySlug}-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
                 providerKey: PlatformSource.LINKEDIN,
                 company,
                 companySlug,
                 title,
-                category: determineCategory(title, title),
-                jobType: determineJobType(title, title),
-                experienceLevel: determineExperienceLevel(title, title),
+                category: determineCategory(title, ""),
+                jobType: determineJobType(title, ""),
+                experienceLevel: determineExperienceLevel(title, ""),
                 location,
                 isRemote: true,
-                remoteRegion: rawLocation || "Remote",
+                remoteRegion: rawLocation || "Worldwide",
                 remoteScope,
                 discoveryUrl: cleanUrl,
                 canonicalAppUrl: cleanUrl,
@@ -102,7 +103,7 @@ export class LinkedInProvider implements JobSourceProvider {
                 verificationStatus: "VERIFIED_AGGREGATOR",
                 postedAt: validPostedAt,
                 opportunitySignals,
-                rawDescription: "",
+                rawDescription: `${title} at ${company}. Direct remote job opportunity listed on LinkedIn.`,
                 hasFullText: false,
               });
             }
@@ -114,7 +115,7 @@ export class LinkedInProvider implements JobSourceProvider {
     }
 
     return {
-      providerKey: PlatformSource.LINKEDIN,
+      providerKey: this.providerKey,
       jobs,
       success: true,
       durationMs: Date.now() - startTime,
