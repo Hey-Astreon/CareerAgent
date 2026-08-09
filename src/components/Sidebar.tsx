@@ -6,14 +6,12 @@ import {
   Globe,
   Target,
   FileText,
-  Kanban,
 } from "lucide-react";
 
 const navItems = [
   { name: "Live Discovery Feed", href: "/", icon: Globe, badge: "Live" },
   { name: "Fit & Match Studio", href: "/match", icon: Target },
   { name: "Application Kit Drafter", href: "/drafter", icon: FileText },
-  { name: "Funnel Pipeline", href: "/tracker", icon: Kanban },
 ];
 
 export function Sidebar() {

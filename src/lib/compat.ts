@@ -1,4 +1,4 @@
-import { Opportunity, JobOccurrence, JobPosting } from "@prisma/client";
+import { Opportunity, JobOccurrence, JobPosting, RemoteScope } from "@prisma/client";
 
 export interface LegacyJobItem {
   id: string;
@@ -12,7 +12,10 @@ export interface LegacyJobItem {
   platform: string;
   location: string;
   isRemote: boolean;
-  postedAt: string;
+  remoteScope?: RemoteScope;
+  opportunitySignals?: string[];
+  postedAt?: string | null;
+  firstSeenAt?: string | null;
   rawDescription: string;
 }
 
@@ -23,6 +26,12 @@ export function formatOpportunityForLegacyView(
   opp: Opportunity & { occurrences?: JobOccurrence[] }
 ): LegacyJobItem {
   const primaryOccurrence = opp.occurrences?.[0];
+  let signals: string[] = [];
+  try {
+    signals = JSON.parse(opp.opportunitySignals || "[]");
+  } catch {
+    signals = [];
+  }
 
   return {
     id: opp.id,
@@ -36,7 +45,10 @@ export function formatOpportunityForLegacyView(
     platform: primaryOccurrence?.providerKey || "DIRECT_PORTAL",
     location: opp.location,
     isRemote: opp.isRemote,
-    postedAt: opp.postedAt.toISOString(),
+    remoteScope: opp.remoteScope,
+    opportunitySignals: signals,
+    postedAt: opp.postedAt ? opp.postedAt.toISOString() : null,
+    firstSeenAt: opp.firstSeenAt ? opp.firstSeenAt.toISOString() : null,
     rawDescription: opp.rawDescription,
   };
 }
@@ -45,6 +57,13 @@ export function formatOpportunityForLegacyView(
  * Formats a JobPosting into legacy JobItem format.
  */
 export function formatJobPostingForLegacyView(posting: JobPosting): LegacyJobItem {
+  let signals: string[] = [];
+  try {
+    signals = JSON.parse(posting.opportunitySignals || "[]");
+  } catch {
+    signals = [];
+  }
+
   return {
     id: posting.id,
     urlHash: posting.urlHash,
@@ -57,7 +76,10 @@ export function formatJobPostingForLegacyView(posting: JobPosting): LegacyJobIte
     platform: posting.platform,
     location: posting.location,
     isRemote: posting.isRemote,
-    postedAt: posting.postedAt.toISOString(),
+    remoteScope: posting.remoteScope,
+    opportunitySignals: signals,
+    postedAt: posting.postedAt ? posting.postedAt.toISOString() : null,
+    firstSeenAt: posting.createdAt ? posting.createdAt.toISOString() : null,
     rawDescription: posting.rawDescription,
   };
 }

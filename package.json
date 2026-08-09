@@ -2,7 +2,7 @@
   "name": "ai_career_engine",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
+  "scripts": {"d3-6": "npx ts-node -e \"import('./src/lib/providers/registry').then(m=>m.runAllProviders().then(()=>console.log('DONE')))\"",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -33,10 +33,12 @@
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

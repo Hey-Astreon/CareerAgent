@@ -21,7 +21,10 @@ const EXCLUDED_TITLES = [
 
 const ONSITE_KEYWORDS = [
   "on-site", "onsite", "in-office", "office only", "must relocate",
-  "in office", "on site", "not remote", "hybrid"
+  "in office", "on site", "not remote", "hybrid", "hybride", "relocate",
+  "relocation required", "in-person", "in person", "partially remote",
+  "hybrid remote", "office-based", "office based", "on-location", "on location",
+  "on-site only", "onsite only", "hybrid work", "hybrid position", "hybrid role",
 ];
 
 const SENIOR_DESC_SIGNALS = [
@@ -149,8 +152,9 @@ export function determineJobType(title: string, description: string = ""): strin
 export function determineExperienceLevel(title: string, description: string = ""): string {
   const t = title.toLowerCase();
   const d = description.toLowerCase();
-  const fullText = t + " " + d;
+  const fullText = (t + " " + d).trim();
 
+  // 1. Senior / Staff Level in Title
   if (
     t.includes("staff") ||
     t.includes("principal") ||
@@ -159,17 +163,43 @@ export function determineExperienceLevel(title: string, description: string = ""
     t.includes("engineering manager") ||
     t.includes("senior") ||
     t.includes("sr.") ||
-    t.includes("sr ") ||
-    t.includes("manager")
+    /\bsr\b/.test(t) ||
+    t.includes("manager") ||
+    t.includes("director") ||
+    t.includes("head of")
   ) {
     return "Senior / Staff Level (5+ Yrs)";
   }
 
+  // 2. Explicit Senior Signals in Description / Numeric (5+ yrs, 6+ yrs, 7+ yrs, 8+ yrs, 10+ yrs)
   const hasSeniorDescSignal = SENIOR_DESC_SIGNALS.some((sig) => fullText.includes(sig));
-  if (hasSeniorDescSignal) {
+  if (hasSeniorDescSignal || /\b(?:5\+|6\+|7\+|8\+|9\+|10\+|[5-9]-\d+|10-\d+)\s*(?:years?|yrs?)\b/i.test(fullText)) {
     return "Senior / Staff Level (5+ Yrs)";
   }
 
+  // 3. Priority: Explicit Numeric Experience Requirements
+  // Mid-Level / High Experience Numeric Patterns: 2-4, 3-4, 3-5, 4-5, 4-6, 4+, 3+ years
+  if (
+    /\b(?:2\s*-\s*4|3\s*-\s*4|3\s*-\s*5|4\s*-\s*5|4\s*-\s*6|4\+|3\+)\s*(?:years?|yrs?)\b/i.test(fullText) ||
+    /\b(?:2\s+to\s+4|3\s+to\s+4|3\s+to\s+5|4\s+to\s+5)\s*(?:years?|yrs?)\b/i.test(fullText)
+  ) {
+    return "Mid-Level (2-4 Yrs)";
+  }
+
+  // Entry / Junior Numeric Patterns: 0-1, 0-2, 0-3, 1-2, 1-3, 2-3 years
+  if (
+    /\b(?:0\s*-\s*1|0\s*to\s*1|0-1)\s*(?:years?|yrs?)\b/i.test(fullText)
+  ) {
+    return "Fresher / Entry Level (0-1 Yr)";
+  }
+
+  if (
+    /\b(?:0\s*-\s*2|0\s*to\s*2|0\s*-\s*3|0\s*to\s*3|1\s*-\s*2|1\s*to\s*2|1\s*-\s*3|1\s*to\s*3|2\s*-\s*3|2\s*to\s*3)\s*(?:years?|yrs?)\b/i.test(fullText)
+  ) {
+    return "Junior (1-3 Yrs)";
+  }
+
+  // 4. Textual Entry / Fresher Signals in Title or Description
   if (
     containsWord(fullText, "internship") ||
     containsWord(fullText, "intern") ||
@@ -194,18 +224,221 @@ export function determineExperienceLevel(title: string, description: string = ""
     return "Junior (1-3 Yrs)";
   }
 
-  if (
-    fullText.includes("2+ years") ||
-    fullText.includes("3+ years") ||
-    fullText.includes("4+ years") ||
-    fullText.includes("2-4 year") ||
-    fullText.includes("mid-level") ||
-    fullText.includes("mid level")
-  ) {
+  // 5. Mid-Level Role Title or Explicit Role Description (NOT contextual mentions)
+  if (t.includes("mid-level") || t.includes("mid level") || t.includes("intermediate")) {
+    return "Mid-Level (2-4 Yrs)";
+  }
+
+  const isContextualMid = /\b(?:work with|mentored by|team of|alongside|reporting to|collaborate with|collaboration with|interact with|join a team of)\s+(?:[a-z0-9,]+\s+)*(?:senior\s+and\s+)?mid-level\b/i.test(d);
+  const isRoleMid = (
+    /\b(?:this is a|position is|role is|seeking a|hiring a|looking for a|seeking|hiring)\s+(?:a\s+)?mid-level\b/i.test(d) ||
+    (/\bmid-level\s+(?:position|role|engineer|developer|candidate|level)\b/i.test(d) && !isContextualMid)
+  );
+
+  if (isRoleMid && !isContextualMid) {
     return "Mid-Level (2-4 Yrs)";
   }
 
   return "0-3 Years (Entry/Junior)";
+}
+
+import { RemoteScope } from "@prisma/client";
+import { OpportunitySignal, ApplicationUrlType } from "./types";
+import { isDirectAtsUrl } from "./dedup";
+
+export function parseRemoteScope(location: string = "", description: string = ""): RemoteScope {
+  const loc = location.toLowerCase();
+  const desc = description.toLowerCase();
+
+  // Extract inner content from parenthetical formats like "Remote (US Only)", "Remote (Global)", "Remote (India)"
+  const parenMatch = loc.match(/\(([^)]+)\)/);
+  const innerParen = parenMatch ? parenMatch[1].toLowerCase().trim() : "";
+  const augmentedLoc = loc + " " + innerParen;
+  const combined = augmentedLoc + " " + desc;
+
+  // 1. Explicit Worldwide / Global
+  if (
+    loc.includes("worldwide") ||
+    loc.includes("work anywhere") ||
+    loc.includes("anywhere in the world") ||
+    loc.includes("global remote") ||
+    loc.includes("100% remote (worldwide)") ||
+    innerParen === "global" ||
+    innerParen === "worldwide" ||
+    innerParen.includes("anywhere")
+  ) {
+    return RemoteScope.WORLDWIDE;
+  }
+
+  // 2. Explicit India
+  if (
+    loc.includes("india") ||
+    loc.includes("bengaluru") ||
+    loc.includes("bangalore") ||
+    loc.includes("mumbai") ||
+    loc.includes("delhi") ||
+    loc.includes("hyderabad") ||
+    loc.includes("pune") ||
+    loc.includes("remote - india") ||
+    loc.includes("remote, india") ||
+    innerParen === "india" ||
+    innerParen.includes("india")
+  ) {
+    return RemoteScope.INDIA;
+  }
+
+  // 3. Explicit APAC
+  if (
+    loc.includes("apac") ||
+    loc.includes("asia pacific") ||
+    loc.includes("singapore") ||
+    loc.includes("japan") ||
+    loc.includes("australia") ||
+    innerParen === "apac" ||
+    innerParen.includes("asia pacific")
+  ) {
+    return RemoteScope.APAC;
+  }
+
+  // 4. Explicit EMEA / Europe
+  if (
+    loc.includes("emea") ||
+    loc.includes("europe") ||
+    loc.includes("eu / uk") ||
+    loc.includes("germany") ||
+    loc.includes("france") ||
+    innerParen === "emea" ||
+    innerParen === "europe"
+  ) {
+    return RemoteScope.EMEA;
+  }
+
+  // 5. Explicit US / Americas restrictions
+  if (
+    loc.includes("us only") ||
+    loc.includes("united states") ||
+    loc.includes("us timezones") ||
+    loc.includes("us-only") ||
+    loc.includes("us remote") ||
+    loc.includes("remote - us") ||
+    loc.includes("remote (us)") ||
+    combined.includes("w2 only") ||
+    combined.includes("must reside in us") ||
+    combined.includes("must reside in the united states") ||
+    innerParen === "us" ||
+    innerParen === "us only" ||
+    innerParen === "us & canada" ||
+    innerParen === "us and eu" ||
+    innerParen.includes("us only")
+  ) {
+    return RemoteScope.US_ONLY;
+  }
+
+  if (
+    loc.includes("americas") ||
+    loc.includes("latam") ||
+    loc.includes("north america") ||
+    innerParen.includes("north america") ||
+    innerParen.includes("americas")
+  ) {
+    return RemoteScope.AMERICAS;
+  }
+
+  if (
+    loc.includes("eu only") ||
+    loc.includes("uk only") ||
+    loc.includes("uk remote") ||
+    innerParen === "eu only" ||
+    innerParen === "uk only" ||
+    innerParen === "uk"
+  ) {
+    return RemoteScope.EU_UK_ONLY;
+  }
+
+  if (
+    loc.includes("country specific") ||
+    loc.includes("country-specific") ||
+    loc.includes("single country") ||
+    innerParen.includes("country specific") ||
+    innerParen.includes("country-specific")
+  ) {
+    return RemoteScope.COUNTRY_SPECIFIC;
+  }
+
+  // 6. Conservative Fallback: Ambiguous locations remain UNKNOWN
+  return RemoteScope.UNKNOWN;
+}
+
+export function formatRemoteScopeLabel(remoteScope?: RemoteScope | string | null, location?: string): string {
+  const scopeStr = remoteScope ? String(remoteScope) : "";
+  if (scopeStr === "WORLDWIDE" || scopeStr === RemoteScope.WORLDWIDE) return "Remote — Worldwide";
+  if (scopeStr === "INDIA" || scopeStr === RemoteScope.INDIA) return "Remote — India";
+  if (scopeStr === "US_ONLY" || scopeStr === RemoteScope.US_ONLY) return "Remote — US Only";
+  if (scopeStr === "APAC" || scopeStr === RemoteScope.APAC) return "Remote — APAC";
+  if (scopeStr === "EMEA" || scopeStr === RemoteScope.EMEA) return "Remote — EMEA";
+  if (scopeStr === "AMERICAS" || scopeStr === RemoteScope.AMERICAS) return "Remote — Americas";
+  if (scopeStr === "EU_UK_ONLY" || scopeStr === RemoteScope.EU_UK_ONLY) return "Remote — EU/UK Only";
+  if (scopeStr === "COUNTRY_SPECIFIC" || scopeStr === RemoteScope.COUNTRY_SPECIFIC) return "Remote — Country Specific";
+
+  if (location) {
+    const parsed = parseRemoteScope(location, "");
+    if (parsed !== RemoteScope.UNKNOWN) {
+      return formatRemoteScopeLabel(parsed);
+    }
+    if (location.toLowerCase().includes("remote")) {
+      return "Remote";
+    }
+  }
+
+  return "Remote scope unknown";
+}
+
+/**
+ * Derives truthful observable opportunity signals.
+ * CRITICAL RULE: "FRESH" signal is assigned ONLY when genuine source postedAt is within last 24 hours.
+ * If postedAt is null/missing, FRESH is NEVER assigned.
+ */
+export function determineOpportunitySignals(job: {
+  postedAt?: Date | null;
+  applicationUrlType?: ApplicationUrlType;
+  canonicalAppUrl?: string;
+  providerKey?: string;
+  applicantCount?: number | null;
+}): OpportunitySignal[] {
+  const signals: OpportunitySignal[] = [];
+
+  // FRESH Signal Rule: Genuine source postedAt exists AND is <= 24h ago
+  if (job.postedAt && job.postedAt instanceof Date && !isNaN(job.postedAt.getTime())) {
+    const ageMs = Date.now() - job.postedAt.getTime();
+    if (ageMs >= 0 && ageMs <= 24 * 3600 * 1000) {
+      signals.push("FRESH");
+    }
+  }
+
+  // DIRECT_APPLICATION Signal Rule
+  if (
+    job.applicationUrlType === "DIRECT_ATS" ||
+    (job.canonicalAppUrl && isDirectAtsUrl(job.canonicalAppUrl))
+  ) {
+    signals.push("DIRECT_APPLICATION");
+  }
+
+  // NICHE_SOURCE Signal Rule
+  const nicheSources = ["HN_HIRING", "WEWORKREMOTELY", "JOBICY", "ARBEITNOW", "HIMALAYAS", "YC_JOBS"];
+  if (job.providerKey && nicheSources.includes(job.providerKey)) {
+    signals.push("NICHE_SOURCE");
+  }
+
+  // EXPLICIT_APPLICANT_COUNT Signal Rule
+  if (typeof job.applicantCount === "number" && job.applicantCount > 0) {
+    signals.push("EXPLICIT_APPLICANT_COUNT");
+  }
+
+  if (signals.length === 0) {
+    signals.push("UNKNOWN");
+  }
+
+  return signals;
 }
 
 export function isStrictlyRemoteDeveloperRole(title: string, location: string = "", description: string = ""): boolean {
@@ -221,14 +454,18 @@ export function isStrictlyRemoteDeveloperRole(title: string, location: string = 
   const isCodingRole = SWE_TITLE_KEYWORDS.some((kw) => lowerTitle.includes(kw));
   if (!isCodingRole) return false;
 
-  // 3. Exclude On-Site / Hybrid jobs
-  if (lowerLoc) {
-    const isOnSiteKeyword = ONSITE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerDesc.includes(kw));
-    if (isOnSiteKeyword) return false;
+  // 3. Exclude On-Site / Hybrid jobs strictly
+  const isOnSite = ONSITE_KEYWORDS.some((kw) => lowerTitle.includes(kw) || lowerLoc.includes(kw) || lowerDesc.includes(kw));
+  if (isOnSite) return false;
 
-    const REMOTE_KEYWORDS = ["remote", "telecommute", "anywhere", "wfh", "work from home", "home-based", "virtual", "work from anywhere", "worldwide", "global"];
-    const hasRemoteKeyword = REMOTE_KEYWORDS.some((kw) => lowerLoc.includes(kw) || lowerTitle.includes(kw) || lowerDesc.includes(kw));
-    if (!hasRemoteKeyword) return false;
+  const REMOTE_KEYWORDS = ["remote", "telecommute", "anywhere", "wfh", "work from home", "home-based", "virtual", "work from anywhere", "worldwide", "global"];
+  const locHasRemote = REMOTE_KEYWORDS.some((kw) => lowerLoc.includes(kw));
+  const titleHasRemote = REMOTE_KEYWORDS.some((kw) => lowerTitle.includes(kw));
+
+  // Physical Location Gate: If location string is present, it MUST explicitly contain a remote indicator
+  // or title MUST contain a remote indicator. Description text alone CANNOT override a physical office location.
+  if (lowerLoc && !locHasRemote && !titleHasRemote) {
+    return false;
   }
 
   // 4. Exclude Senior / Staff / Principal / Lead by TITLE
@@ -238,8 +475,7 @@ export function isStrictlyRemoteDeveloperRole(title: string, location: string = 
     /\bsr\b/.test(lowerTitle) ||
     lowerTitle.includes("staff") ||
     lowerTitle.includes("principal") ||
-    lowerTitle.includes("tech lead") ||
-    lowerTitle.includes("lead engineer") ||
+    /\blead\b/.test(lowerTitle) ||
     lowerTitle.includes("manager") ||
     lowerTitle.includes("director") ||
     lowerTitle.includes("head of")

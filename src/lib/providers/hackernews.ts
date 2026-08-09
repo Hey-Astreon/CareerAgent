@@ -8,6 +8,8 @@ import {
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
 
 export class HackerNewsProvider implements JobSourceProvider {
@@ -74,7 +76,7 @@ export class HackerNewsProvider implements JobSourceProvider {
 
             let companyName = parts[0] || "HN Hiring Startup";
             let roleTitle = parts.length > 1 ? parts[1] : parts[0];
-            let locationStr = parts.length > 2 ? parts[2] : "Remote";
+            const locationStr = parts.length > 2 ? parts[2] : "Remote";
 
             // If header line wasn't pipe-separated, extract company and title from text
             if (parts.length === 1) {
@@ -108,6 +110,15 @@ export class HackerNewsProvider implements JobSourceProvider {
             }
 
             const { company, companySlug } = cleanCompanySlug(companyName);
+            const postedAt = comment.created_at ? new Date(comment.created_at) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
+            const remoteScope = parseRemoteScope(locationStr, plainText);
+            const opportunitySignals = determineOpportunitySignals({
+              postedAt: validPostedAt,
+              applicationUrlType: "COMMUNITY_POST",
+              canonicalAppUrl: applyUrl,
+              providerKey: PlatformSource.HN_HIRING,
+            });
 
             jobs.push({
               sourceJobId: String(comment.id),
@@ -118,12 +129,16 @@ export class HackerNewsProvider implements JobSourceProvider {
               category: determineCategory(roleTitle, plainText),
               jobType: determineJobType(roleTitle, plainText),
               experienceLevel: determineExperienceLevel(roleTitle, plainText),
-              location: locationStr ? `Remote (${locationStr})` : "100% Remote (Worldwide)",
+              location: locationStr ? `Remote (${locationStr})` : "Remote",
               isRemote: true,
               remoteRegion: locationStr || "Worldwide",
+              remoteScope,
               discoveryUrl: `https://news.ycombinator.com/item?id=${comment.id}`,
               canonicalAppUrl: applyUrl,
-              postedAt: comment.created_at ? new Date(comment.created_at) : new Date(),
+              applicationUrlType: "COMMUNITY_POST",
+              verificationStatus: "COMMUNITY_SUBMITTED",
+              postedAt: validPostedAt,
+              opportunitySignals,
               rawDescription: plainText,
               hasFullText: plainText.length > 50,
               metadata: {

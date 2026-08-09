@@ -1,4 +1,23 @@
-import { PlatformSource } from "@prisma/client";
+import { PlatformSource, RemoteScope } from "@prisma/client";
+
+export type OpportunitySignal =
+  | "FRESH"
+  | "DIRECT_APPLICATION"
+  | "NICHE_SOURCE"
+  | "EXPLICIT_APPLICANT_COUNT"
+  | "UNKNOWN";
+
+export type ApplicationUrlType =
+  | "DIRECT_ATS"
+  | "DIRECT_EMPLOYER_SITE"
+  | "AGGREGATOR_PAGE"
+  | "COMMUNITY_POST";
+
+export type VerificationStatusType =
+  | "VERIFIED_DIRECT_ATS"
+  | "VERIFIED_AGGREGATOR"
+  | "COMMUNITY_SUBMITTED"
+  | "UNVERIFIED";
 
 export interface NormalizedJob {
   sourceJobId?: string;
@@ -12,13 +31,18 @@ export interface NormalizedJob {
   location: string;
   isRemote: boolean;
   remoteRegion?: string;
+  remoteScope: RemoteScope;
   discoveryUrl: string;
   canonicalAppUrl: string;
-  postedAt: Date;
+  applicationUrlType?: ApplicationUrlType;
+  verificationStatus?: VerificationStatusType;
+  postedAt?: Date | null;
+  applicantCount?: number | null;
+  opportunitySignals: OpportunitySignal[];
   rawDescription: string;
   hasFullText: boolean;
   technologies?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProviderResult {

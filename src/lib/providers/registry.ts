@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { PlatformSource, SyncStatus } from "@prisma/client";
+import { SyncStatus, PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import { GreenhouseProvider } from "./greenhouse";
 import { LeverProvider } from "./lever";
@@ -13,21 +13,42 @@ import { WorkableProvider } from "./workable";
 import { SmartRecruitersProvider } from "./smartrecruiters";
 import { RecruiteeProvider } from "./recruitee";
 import { HackerNewsProvider } from "./hackernews";
+import { WeWorkRemotelyProvider } from "./weworkremotely";
+import { JobicyProvider } from "./jobicy";
+import { ArbeitnowProvider } from "./arbeitnow";
+import { RemoteOKProvider } from "./remoteok";
+import { Micro1Provider } from "./micro1";
+import { NaukriProvider } from "./naukri";
+import { HiringCafeProvider } from "./hiringcafe";
+import { SimplifyProvider } from "./simplify";
+import { TrueUpProvider } from "./trueup";
+import { ArcDevProvider } from "./arcdev";
+import { BuiltInProvider } from "./builtin";
+import { TheHubProvider } from "./thehub";
 import { generateUrlHash, computeDeduplicationKey, isDirectAtsUrl } from "./dedup";
+import { parseRemoteScope } from "./normalize";
+import { isValidHttpUrl } from "@/lib/urlValidator";
+import { logProviderDiagnostics } from "./diagnostic";
+
 
 export const ACTIVE_PROVIDERS: JobSourceProvider[] = [
   new GreenhouseProvider(),
-  new LeverProvider(),
   new AshbyProvider(),
-  new WorkableProvider(),
-  new SmartRecruitersProvider(),
-  new RecruiteeProvider(),
+  new HiringCafeProvider(),
+  new SimplifyProvider(),
+  new TrueUpProvider(),
+  new ArcDevProvider(),
+  new BuiltInProvider(),
+  new TheHubProvider(),
   new HimalayasProvider(),
-  new RemotiveProvider(),
   new HackerNewsProvider(),
   new LinkedInProvider(),
   new YCProvider(),
   new WellfoundProvider(),
+  new WeWorkRemotelyProvider(),
+  new JobicyProvider(),
+  new Micro1Provider(),
+  new NaukriProvider(),
 ];
 
 /**
@@ -99,6 +120,8 @@ export async function runAllProviders(
       if (result.success && result.jobs.length > 0) {
         allJobs.push(...result.jobs);
       }
+      // Compute diagnostics for this provider (always log, even if 0 jobs)
+      logProviderDiagnostics(provider.providerKey, result);
       totalDiscovered += result.jobsDiscovered;
       totalRejected += result.jobsRejected;
 
@@ -210,6 +233,18 @@ export async function evaluateJobFreshness(providerKey: string): Promise<{
       }
     }
 
+    // 4. Mark stale JobPostings for this provider as expired
+    await tx.jobPosting.updateMany({
+      where: {
+        platform: providerKey as PlatformSource,
+        lastSeenAt: { lt: cutoffTime },
+        isExpired: false,
+      },
+      data: {
+        isExpired: true,
+      },
+    });
+
     return { prunedOccurrences: deleteResult.count, expiredOpportunities: expiredCount };
   });
 }
@@ -223,8 +258,38 @@ export async function ingestNormalizedJobs(jobs: NormalizedJob[]): Promise<{ ins
   let insertedCount = 0;
   let updatedCount = 0;
 
+  // Ensure ProviderSyncState rows exist for all provider keys in this batch before JobOccurrence upserts
+  const providerKeys = Array.from(new Set(jobs.map((j) => j.providerKey)));
+  for (const pk of providerKeys) {
+    await db.providerSyncState.upsert({
+      where: { providerKey: pk },
+      update: {},
+      create: {
+        providerKey: pk,
+        status: SyncStatus.HEALTHY,
+        totalJobsSeen: 0,
+      },
+    }).catch(() => {});
+  }
+
   for (const job of jobs) {
+    const validAppUrl = job.canonicalAppUrl && isValidHttpUrl(job.canonicalAppUrl) ? job.canonicalAppUrl : null;
+    const validDiscoveryUrl = job.discoveryUrl && isValidHttpUrl(job.discoveryUrl) ? job.discoveryUrl : null;
+    const primaryUrl = validAppUrl || validDiscoveryUrl;
+
+    if (!primaryUrl) {
+      // Skip job record if neither application URL nor discovery URL is a valid HTTP/HTTPS URL
+      continue;
+    }
+
+    job.canonicalAppUrl = primaryUrl;
+    job.discoveryUrl = validDiscoveryUrl || primaryUrl;
+
     const urlHash = generateUrlHash(job.canonicalAppUrl || job.discoveryUrl);
+
+    const resolvedRemoteScope = (job.remoteScope && job.remoteScope !== "UNKNOWN")
+      ? job.remoteScope
+      : parseRemoteScope(job.location || "", job.rawDescription || "");
 
     // 1. Ingest into JobPosting model for backward compatibility
     const existingJobPosting = await db.jobPosting.findUnique({
@@ -239,6 +304,7 @@ export async function ingestNormalizedJobs(jobs: NormalizedJob[]): Promise<{ ins
           isExpired: false,
           rawDescription: job.rawDescription || existingJobPosting.rawDescription,
           hasFullText: job.hasFullText,
+          remoteScope: resolvedRemoteScope !== "UNKNOWN" ? resolvedRemoteScope : (existingJobPosting.remoteScope || "UNKNOWN"),
         },
       });
       updatedCount++;
@@ -255,6 +321,8 @@ export async function ingestNormalizedJobs(jobs: NormalizedJob[]): Promise<{ ins
           platform: job.providerKey,
           location: job.location,
           isRemote: job.isRemote,
+          remoteScope: resolvedRemoteScope,
+          opportunitySignals: JSON.stringify(job.opportunitySignals || []),
           postedAt: job.postedAt,
           rawDescription: job.rawDescription || `${job.title} at ${job.company}`,
           hasFullText: job.hasFullText,
@@ -269,7 +337,6 @@ export async function ingestNormalizedJobs(jobs: NormalizedJob[]): Promise<{ ins
     try {
       const dedupKey = computeDeduplicationKey(job);
 
-      // Search existing opportunity matching company, title, AND exact location (different locations remain distinct!)
       const existingOpp = await db.opportunity.findFirst({
         where: {
           companySlug: job.companySlug,
@@ -283,12 +350,16 @@ export async function ingestNormalizedJobs(jobs: NormalizedJob[]): Promise<{ ins
         oppId = existingOpp.id;
         const upgradeDirectUrl = isDirectAtsUrl(job.canonicalAppUrl) && !isDirectAtsUrl(existingOpp.canonicalAppUrl);
         const upgradeDescription = job.hasFullText && !existingOpp.hasFullText;
+        const upgradePostedAt = !existingOpp.postedAt && job.postedAt;
 
         await db.opportunity.update({
           where: { id: oppId },
           data: {
             lastSeenAt: new Date(),
             isExpired: false,
+            remoteScope: resolvedRemoteScope !== "UNKNOWN" ? resolvedRemoteScope : existingOpp.remoteScope,
+            opportunitySignals: JSON.stringify(job.opportunitySignals || []),
+            ...(upgradePostedAt ? { postedAt: job.postedAt } : {}),
             ...(upgradeDirectUrl ? { canonicalAppUrl: job.canonicalAppUrl } : {}),
             ...(upgradeDescription ? { rawDescription: job.rawDescription, hasFullText: true } : {}),
           },
@@ -305,6 +376,8 @@ export async function ingestNormalizedJobs(jobs: NormalizedJob[]): Promise<{ ins
             location: job.location,
             isRemote: job.isRemote,
             remoteRegion: job.remoteRegion || "Worldwide",
+            remoteScope: resolvedRemoteScope,
+            opportunitySignals: JSON.stringify(job.opportunitySignals || []),
             canonicalAppUrl: job.canonicalAppUrl || job.discoveryUrl,
             rawDescription: job.rawDescription || `${job.title} at ${job.company}`,
             hasFullText: job.hasFullText,

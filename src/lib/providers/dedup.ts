@@ -38,10 +38,29 @@ export function isDirectAtsUrl(url: string): boolean {
 }
 
 /**
+ * Normalizes description text by stripping HTML, decoding HTML entities,
+ * collapsing whitespace, lowercasing, and trimming.
+ */
+export function cleanTextForDedup(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/<[^>]*>?/gm, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
+/**
  * Computes a deterministic multi-signal deduplication key using:
  * 1. ATS Source Job ID + Provider Key (Exact ATS match)
  * 2. Canonical Application URL Hash (Exact Link match)
- * 3. Multi-signal tuple: companySlug + title + location + experienceLevel + description MD5 snippet
+ * 3. Multi-signal tuple: companySlug + title + location + experienceLevel + remoteScope + normalized description MD5 snippet
  */
 export function computeDeduplicationKey(job: NormalizedJob): string {
   // Signal 1: ATS Provider + Source Job ID
@@ -58,12 +77,14 @@ export function computeDeduplicationKey(job: NormalizedJob): string {
     return `url:${cleanUrl}`;
   }
 
-  // Signal 3: Multi-Signal Tuple (Location + Title + Company + Experience + Description Snippet MD5)
-  const normCompany = job.companySlug.toLowerCase().trim();
-  const normTitle = job.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const normLocation = job.location.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const normExp = job.experienceLevel.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const descSnippet = (job.rawDescription || "").slice(0, 200).toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Signal 3: Multi-Signal Tuple (Company + Title + Location + Experience + Clean Description MD5)
+  const normCompany = (job.companySlug || job.company || "").toLowerCase().trim();
+  const normTitle = (job.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normLocation = (job.location || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normExp = (job.experienceLevel || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const cleanedDesc = cleanTextForDedup(job.rawDescription || "");
+  const descSnippet = cleanedDesc.slice(0, 200).replace(/[^a-z0-9]/g, "");
   const descHash = crypto.createHash("md5").update(descSnippet).digest("hex").slice(0, 8);
 
   return `sig:${normCompany}:${normTitle}:${normLocation}:${normExp}:${descHash}`;

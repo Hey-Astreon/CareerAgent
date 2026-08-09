@@ -8,19 +8,15 @@ import {
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
-
-const TARGET_GREENHOUSE_COMPANIES = [
-  "vercel", "stripe", "gitlab", "discord", "cloudflare",
-  "coinbase", "doordash", "hashicorp", "automattic", "elastic",
-  "reddit", "airtable", "webflow", "sourcegraph", "zapier",
-  "docker", "datadog", "sentry", "cockroachlabs", "databricks", "mongodb"
-];
+import { GREENHOUSE_BOARDS, classifyAtsResponse } from "./ats_directory";
 
 export class GreenhouseProvider implements JobSourceProvider {
   name = "Greenhouse ATS";
   providerKey = PlatformSource.GREENHOUSE;
-  timeoutMs = 12000;
+  timeoutMs = 30000;
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
@@ -28,12 +24,14 @@ export class GreenhouseProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    const companyFetches = TARGET_GREENHOUSE_COMPANIES.map(async (companySlug) => {
+    const companyFetches = GREENHOUSE_BOARDS.map(async (board) => {
       try {
-        const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs?content=true`;
-        const res = await axios.get(apiUrl, { timeout: 6000 });
+        const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${board.slug}/jobs`;
+        const res = await axios.get(apiUrl, { timeout: 5000, validateStatus: () => true });
 
-        if (res.data && Array.isArray(res.data.jobs)) {
+        const status = classifyAtsResponse(res.status, !!(res.data && Array.isArray(res.data.jobs)), res.data?.jobs?.length || 0);
+
+        if (status === "ACTIVE" && res.data && Array.isArray(res.data.jobs)) {
           const companyJobs: NormalizedJob[] = [];
           let companyDiscovered = 0;
           let companyRejected = 0;
@@ -50,32 +48,46 @@ export class GreenhouseProvider implements JobSourceProvider {
               continue;
             }
 
-            const { company, companySlug: normSlug } = cleanCompanySlug(companySlug);
+            const { company, companySlug: normSlug } = cleanCompanySlug(board.slug);
+            const postedAtRaw = item.first_published || null;
+            const postedAt = postedAtRaw ? new Date(postedAtRaw) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
+
+            const remoteScope = parseRemoteScope(locationName, rawContent);
+            const opportunitySignals = determineOpportunitySignals({
+              postedAt: validPostedAt,
+              applicationUrlType: "DIRECT_ATS",
+              canonicalAppUrl: jobUrl,
+              providerKey: this.providerKey,
+            });
 
             companyJobs.push({
               sourceJobId: String(item.id),
               providerKey: PlatformSource.GREENHOUSE,
-              company,
+              company: board.name || company,
               companySlug: normSlug,
               title,
               category: determineCategory(title, rawContent),
               jobType: determineJobType(title, rawContent),
               experienceLevel: determineExperienceLevel(title, rawContent),
-              location: "100% Remote",
+              location: locationName || "Remote",
               isRemote: true,
-              remoteRegion: "Worldwide",
+              remoteScope,
               discoveryUrl: jobUrl,
               canonicalAppUrl: jobUrl,
-              postedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
+              applicationUrlType: "DIRECT_ATS",
+              verificationStatus: "VERIFIED_DIRECT_ATS",
+              postedAt: validPostedAt,
+              opportunitySignals,
               rawDescription: rawContent,
-              hasFullText: true,
+              hasFullText: rawContent.length > 30,
             });
           }
 
           return { companyJobs, companyDiscovered, companyRejected };
         }
       } catch {
-        // Ignore single company board errors (e.g. 404)
+        // Ignore single board errors
       }
       return { companyJobs: [], companyDiscovered: 0, companyRejected: 0 };
     });

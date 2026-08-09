@@ -8,6 +8,8 @@ import {
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
 
 export class RemotiveProvider implements JobSourceProvider {
@@ -22,8 +24,7 @@ export class RemotiveProvider implements JobSourceProvider {
     let rejectedCount = 0;
 
     try {
-      // Official public API endpoint for Software Development category
-      const apiUrl = "https://remotive.com/api/remote-jobs?category=software-dev&limit=40";
+      const apiUrl = "https://remotive.com/api/remote-jobs?limit=100";
       const res = await axios.get(apiUrl, {
         headers: {
           "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
@@ -47,6 +48,15 @@ export class RemotiveProvider implements JobSourceProvider {
           }
 
           const { company, companySlug } = cleanCompanySlug(companyName);
+          const postedAt = item.publication_date ? new Date(item.publication_date) : null;
+          const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
+          const remoteScope = parseRemoteScope(location, rawDesc);
+          const opportunitySignals = determineOpportunitySignals({
+            postedAt: validPostedAt,
+            applicationUrlType: "DIRECT_EMPLOYER_SITE",
+            canonicalAppUrl: discoveryUrl,
+            providerKey: this.providerKey,
+          });
 
           jobs.push({
             sourceJobId: String(item.id),
@@ -57,12 +67,16 @@ export class RemotiveProvider implements JobSourceProvider {
             category: determineCategory(title, rawDesc),
             jobType: determineJobType(title, rawDesc),
             experienceLevel: determineExperienceLevel(title, rawDesc),
-            location: location ? `Remote (${location})` : "100% Remote (Worldwide)",
+            location: location ? `Remote (${location})` : "Remote",
             isRemote: true,
             remoteRegion: location || "Worldwide",
+            remoteScope,
             discoveryUrl,
             canonicalAppUrl: discoveryUrl,
-            postedAt: item.publication_date ? new Date(item.publication_date) : new Date(),
+            applicationUrlType: "DIRECT_EMPLOYER_SITE",
+            verificationStatus: "VERIFIED_AGGREGATOR",
+            postedAt: validPostedAt,
+            opportunitySignals,
             rawDescription: rawDesc,
             hasFullText: rawDesc.length > 50,
           });

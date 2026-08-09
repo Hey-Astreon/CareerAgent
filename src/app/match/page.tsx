@@ -43,7 +43,7 @@ function cleanAndFormatDescription(text: string): string {
 }
 
 export default function MatchStudioPage() {
-  const { activeProfile, activeProfileSlug } = useProfileStore();
+  const { activeProfileSlug } = useProfileStore();
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [matchData, setMatchData] = useState<MatchScoreData | null>(null);

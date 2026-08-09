@@ -56,9 +56,9 @@ export async function scrapeYCJobs(): Promise<ScrapedJob[]> {
         jobType: determineJobType(title, rawDescription),
         experienceLevel: determineExperienceLevel(title, rawDescription),
         platform: PlatformSource.YC_JOBS,
-        location: "100% Remote",
+        location: "Remote",
         isRemote: true,
-        postedAt: new Date(),
+        postedAt: null,
         rawDescription,
       });
     }

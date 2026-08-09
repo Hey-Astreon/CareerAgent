@@ -66,6 +66,8 @@ export function extractSkills(text: string): string[] {
   const found: string[] = [];
 
   for (const skill of TECH_DICTIONARY) {
+    if (!lower.includes(skill)) continue;
+
     const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "i");
     if (regex.test(lower)) {
@@ -200,7 +202,7 @@ export function calculateDeterministicSignals(
   candidate: CandidateContext,
   jobTitle: string,
   jobDescription: string,
-  postedAt?: Date,
+  postedAt?: Date | null,
   providerKey: string = "DIRECT_PORTAL"
 ): DeterministicMatchSignals {
   const candidateFullText = [
@@ -275,7 +277,7 @@ export async function computeCompositeMatchScore(
   jobDescription: string,
   jobLocation: string = "",
   canonicalAppUrl: string = "http://valid.url",
-  postedAt?: Date,
+  postedAt?: Date | null,
   providerKey: string = "DIRECT_PORTAL",
   enableAiReasoning: boolean = true
 ): Promise<CompositeMatchResult> {

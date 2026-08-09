@@ -8,12 +8,17 @@ import {
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
 
 export class HimalayasProvider implements JobSourceProvider {
   name = "Himalayas Remote";
   providerKey = PlatformSource.HIMALAYAS;
-  timeoutMs = 8000;
+  timeoutMs = 30000;
+
+  private static readonly MAX_PAGES = 5;
+  private static readonly PAGE_SIZE = 20; // API caps at 20 regardless of limit param
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
@@ -22,51 +27,81 @@ export class HimalayasProvider implements JobSourceProvider {
     let rejectedCount = 0;
 
     try {
-      // Fetch public JSON feed from Himalayas (official API)
-      const apiUrl = "https://himalayas.app/jobs/api?limit=50";
-      const res = await axios.get(apiUrl, {
-        headers: {
-          "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
-          "Accept": "application/json",
-        },
-        timeout: this.timeoutMs,
-      });
+      // Himalayas API caps results at 20 per page regardless of the limit param.
+      // Paginate through multiple pages to increase discovery volume.
+      for (let page = 0; page < HimalayasProvider.MAX_PAGES; page++) {
+        const offset = page * HimalayasProvider.PAGE_SIZE;
+        const apiUrl = `https://himalayas.app/jobs/api?limit=${HimalayasProvider.PAGE_SIZE}&offset=${offset}`;
 
-      if (res.data && Array.isArray(res.data.jobs)) {
-        for (const item of res.data.jobs) {
-          discoveredCount++;
-          const title = item.title || "";
-          const companyName = item.companyName || "Himalayas Startup";
-          const location = item.locationRestrictions?.join(", ") || "Remote (Worldwide)";
-          const rawDesc = cleanHtmlText(item.description || item.excerpt || "");
-          const discoveryUrl = item.applicationLink || item.url || `https://himalayas.app/jobs/${item.slug}`;
-          const canonicalAppUrl = item.applicationLink || discoveryUrl;
+        try {
+          const res = await axios.get(apiUrl, {
+            headers: {
+              "User-Agent": "CareerAgent/2.0 (Job Discovery Engine; https://github.com/Hey-Astreon/CareerAgent)",
+              "Accept": "application/json",
+            },
+            timeout: 8000,
+          });
 
-          if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
-            rejectedCount++;
-            continue;
+          if (!res.data || !Array.isArray(res.data.jobs) || res.data.jobs.length === 0) {
+            break; // No more pages
           }
 
-          const { company, companySlug } = cleanCompanySlug(companyName);
+          for (const item of res.data.jobs) {
+            discoveredCount++;
+            const title = item.title || "";
+            const companyName = item.companyName || "Himalayas Startup";
+            const location = item.locationRestrictions?.join(", ") || "Remote (Worldwide)";
+            const rawDesc = cleanHtmlText(item.description || item.excerpt || "");
+            const discoveryUrl = item.applicationLink || item.url || `https://himalayas.app/jobs/${item.slug}`;
+            const canonicalAppUrl = item.applicationLink || discoveryUrl;
 
-          jobs.push({
-            sourceJobId: item.id ? String(item.id) : item.slug,
-            providerKey: PlatformSource.HIMALAYAS,
-            company,
-            companySlug,
-            title,
-            category: determineCategory(title, rawDesc),
-            jobType: determineJobType(title, rawDesc),
-            experienceLevel: determineExperienceLevel(title, rawDesc),
-            location: location.includes("Worldwide") || !location ? "100% Remote (Worldwide)" : `Remote (${location})`,
-            isRemote: true,
-            remoteRegion: location.includes("Worldwide") || !location ? "Worldwide" : location,
-            discoveryUrl,
-            canonicalAppUrl,
-            postedAt: item.pubDate ? new Date(item.pubDate * 1000) : new Date(),
-            rawDescription: rawDesc || `${title} at ${company}. Remote position listed on Himalayas.`,
-            hasFullText: rawDesc.length > 50,
-          });
+            if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
+              rejectedCount++;
+              continue;
+            }
+
+            const { company, companySlug } = cleanCompanySlug(companyName);
+            const postedAt = item.pubDate ? new Date(item.pubDate * 1000) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
+            const remoteScope = parseRemoteScope(location, rawDesc);
+            const opportunitySignals = determineOpportunitySignals({
+              postedAt: validPostedAt,
+              applicationUrlType: "DIRECT_EMPLOYER_SITE",
+              canonicalAppUrl,
+              providerKey: PlatformSource.HIMALAYAS,
+            });
+
+            jobs.push({
+              sourceJobId: item.id ? String(item.id) : item.slug,
+              providerKey: PlatformSource.HIMALAYAS,
+              company,
+              companySlug,
+              title,
+              category: determineCategory(title, rawDesc),
+              jobType: determineJobType(title, rawDesc),
+              experienceLevel: determineExperienceLevel(title, rawDesc),
+              location: location ? `Remote (${location})` : "Remote",
+              isRemote: true,
+              remoteRegion: location.includes("Worldwide") || !location ? "Worldwide" : location,
+              remoteScope,
+              discoveryUrl,
+              canonicalAppUrl,
+              applicationUrlType: "DIRECT_EMPLOYER_SITE",
+              verificationStatus: "VERIFIED_AGGREGATOR",
+              postedAt: validPostedAt,
+              opportunitySignals,
+              rawDescription: rawDesc || `${title} at ${company}. Remote position listed on Himalayas.`,
+              hasFullText: rawDesc.length > 50,
+            });
+          }
+
+          // If we got fewer than PAGE_SIZE, we've reached the end
+          if (res.data.jobs.length < HimalayasProvider.PAGE_SIZE) {
+            break;
+          }
+        } catch {
+          // If a single page fails, continue with next page
+          break;
         }
       }
     } catch (err) {

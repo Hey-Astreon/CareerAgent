@@ -34,9 +34,9 @@ export async function scrapeAshbyCompany(companySlug: string): Promise<ScrapedJo
           jobType: determineJobType(title, rawContent),
           experienceLevel: determineExperienceLevel(title, rawContent),
           platform: PlatformSource.ASHBY,
-          location: "100% Remote",
+          location: locationName || "Remote",
           isRemote: true,
-          postedAt: item.publishedAt ? new Date(item.publishedAt) : new Date(),
+          postedAt: item.publishedAt ? new Date(item.publishedAt) : null,
           rawDescription: rawContent,
         });
       }

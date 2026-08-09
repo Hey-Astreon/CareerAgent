@@ -8,14 +8,15 @@ import {
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
-
-const TARGET_WORKABLE_COMPANIES = ["impossiblefoods", "taxfix", "aerospike"];
+import { WORKABLE_BOARDS, classifyAtsResponse } from "./ats_directory";
 
 export class WorkableProvider implements JobSourceProvider {
   name = "Workable ATS";
   providerKey = PlatformSource.WORKABLE;
-  timeoutMs = 10000;
+  timeoutMs = 15000;
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
@@ -23,49 +24,79 @@ export class WorkableProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    for (const companySlug of TARGET_WORKABLE_COMPANIES) {
+    const companyFetches = WORKABLE_BOARDS.map(async (board) => {
       try {
-        const apiUrl = `https://apply.workable.com/api/v1/widget/accounts/${companySlug}?details=true`;
-        const res = await axios.get(apiUrl, { timeout: 5000 });
+        const apiUrl = `https://apply.workable.com/api/v1/widget/accounts/${board.slug}?details=true`;
+        const res = await axios.get(apiUrl, { timeout: 5000, validateStatus: () => true });
 
-        if (res.data && Array.isArray(res.data.jobs)) {
+        const status = classifyAtsResponse(res.status, !!(res.data && Array.isArray(res.data.jobs)), res.data?.jobs?.length || 0);
+
+        if (status === "ACTIVE" && res.data && Array.isArray(res.data.jobs)) {
+          const companyJobs: NormalizedJob[] = [];
+          let companyDiscovered = 0;
+          let companyRejected = 0;
+
           for (const item of res.data.jobs) {
-            discoveredCount++;
+            companyDiscovered++;
             const title = item.title || "";
-            const location = item.location?.city ? `${item.location.city}, ${item.location.country || ""}` : (item.telecommute ? "Remote" : "");
+            const rawLoc = [item.location?.city, item.location?.country].filter(Boolean).join(", ");
+            const location = rawLoc ? (item.telecommute ? `Remote (${rawLoc})` : rawLoc) : "Remote";
             const rawContent = cleanHtmlText(item.description || item.requirements || "");
-            const jobUrl = item.url || `https://apply.workable.com/${companySlug}/j/${item.shortcode}/`;
+            const jobUrl = item.shortlink || item.url || `https://apply.workable.com/${board.slug}/j/${item.shortcode}/`;
 
             if (!isStrictlyRemoteDeveloperRole(title, location, rawContent)) {
-              rejectedCount++;
+              companyRejected++;
               continue;
             }
 
-            const { company, companySlug: normSlug } = cleanCompanySlug(companySlug);
+            const { company, companySlug: normSlug } = cleanCompanySlug(board.slug);
+            const postedAt = item.published ? new Date(item.published) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
 
-            jobs.push({
-              sourceJobId: item.shortcode || item.id ? String(item.shortcode || item.id) : undefined,
+            const remoteScope = parseRemoteScope(location, rawContent);
+            const opportunitySignals = determineOpportunitySignals({
+              postedAt: validPostedAt,
+              applicationUrlType: "DIRECT_ATS",
+              canonicalAppUrl: jobUrl,
+              providerKey: this.providerKey,
+            });
+
+            companyJobs.push({
+              sourceJobId: String(item.shortcode || item.id),
               providerKey: PlatformSource.WORKABLE,
-              company,
+              company: board.name || company,
               companySlug: normSlug,
               title,
               category: determineCategory(title, rawContent),
               jobType: determineJobType(title, rawContent),
               experienceLevel: determineExperienceLevel(title, rawContent),
-              location: location ? `Remote (${location})` : "100% Remote",
+              location,
               isRemote: true,
-              remoteRegion: location || "Worldwide",
+              remoteScope,
               discoveryUrl: jobUrl,
               canonicalAppUrl: jobUrl,
-              postedAt: item.published ? new Date(item.published) : new Date(),
+              applicationUrlType: "DIRECT_ATS",
+              verificationStatus: "VERIFIED_DIRECT_ATS",
+              postedAt: validPostedAt,
+              opportunitySignals,
               rawDescription: rawContent,
               hasFullText: rawContent.length > 30,
             });
           }
+
+          return { companyJobs, companyDiscovered, companyRejected };
         }
-      } catch (err) {
-        console.warn(`[Workable Provider Warning] Failed to parse ${companySlug}:`, (err as Error).message);
+      } catch {
+        // Ignore single board errors
       }
+      return { companyJobs: [], companyDiscovered: 0, companyRejected: 0 };
+    });
+
+    const results = await Promise.all(companyFetches);
+    for (const r of results) {
+      jobs.push(...r.companyJobs);
+      discoveredCount += r.companyDiscovered;
+      rejectedCount += r.companyRejected;
     }
 
     return {

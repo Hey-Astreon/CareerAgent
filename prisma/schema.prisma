@@ -32,6 +32,18 @@ enum SyncStatus {
   DISABLED
 }
 
+enum RemoteScope {
+  WORLDWIDE
+  INDIA
+  APAC
+  EMEA
+  AMERICAS
+  US_ONLY
+  EU_UK_ONLY
+  COUNTRY_SPECIFIC
+  UNKNOWN
+}
+
 enum PlatformSource {
   LINKEDIN
   WELLFOUND
@@ -49,6 +61,16 @@ enum PlatformSource {
   WORKABLE
   SMARTRECRUITERS
   RECRUITEE
+  WEWORKREMOTELY
+  JOBICY
+  ARBEITNOW
+  REMOTEOK
+  HIRING_CAFE
+  SIMPLIFY
+  TRUEUP
+  ARC_DEV
+  BUILTIN
+  THEHUB
 }
 
 model ProviderSyncState {
@@ -125,25 +147,27 @@ model VirtualExperience {
 }
 
 model JobPosting {
-  id              String         @id @default(uuid())
-  urlHash         String         @unique
-  url             String
-  company         String
-  title           String
-  category        String         @default("Software Developer")
-  jobType         String         @default("Remote Full-Time")
-  experienceLevel String         @default("0-3 Years (Entry/Junior)")
-  platform        PlatformSource
-  location        String
-  isRemote        Boolean        @default(true)
-  applicantCount  Int?
-  postedAt        DateTime
-  rawDescription  String
-  lastSeenAt      DateTime       @default(now())
-  isExpired       Boolean        @default(false)
-  hasFullText     Boolean        @default(true)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                 String            @id @default(uuid())
+  urlHash            String            @unique
+  url                String
+  company            String
+  title              String
+  category           String            @default("Software Developer")
+  jobType            String            @default("Remote Full-Time")
+  experienceLevel    String            @default("0-3 Years (Entry/Junior)")
+  platform           PlatformSource
+  location           String
+  isRemote           Boolean           @default(true)
+  remoteScope        RemoteScope       @default(UNKNOWN)
+  opportunitySignals String            @default("[]")
+  applicantCount     Int?
+  postedAt           DateTime?
+  rawDescription     String
+  lastSeenAt         DateTime          @default(now())
+  isExpired          Boolean           @default(false)
+  hasFullText        Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   matchScores  MatchScore[]
   applications Application[]
@@ -157,29 +181,31 @@ model JobPosting {
 }
 
 model Opportunity {
-  id              String   @id @default(uuid())
-  company         String
-  companySlug     String
-  title           String
-  category        String   @default("Software Developer")
-  jobType         String   @default("Remote Full-Time")
-  experienceLevel String   @default("0-3 Years (Entry/Junior)")
-  location        String
-  isRemote        Boolean  @default(true)
-  remoteRegion    String?
-  canonicalAppUrl String
-  technologies    String   @default("[]")
-  rawDescription  String
-  hasFullText     Boolean  @default(true)
+  id                 String            @id @default(uuid())
+  company            String
+  companySlug        String
+  title              String
+  category           String            @default("Software Developer")
+  jobType            String            @default("Remote Full-Time")
+  experienceLevel    String            @default("0-3 Years (Entry/Junior)")
+  location           String
+  isRemote           Boolean           @default(true)
+  remoteRegion       String?
+  remoteScope        RemoteScope       @default(UNKNOWN)
+  opportunitySignals String            @default("[]")
+  canonicalAppUrl    String
+  technologies       String            @default("[]")
+  rawDescription     String
+  hasFullText        Boolean           @default(true)
 
-  postedAt        DateTime
-  firstSeenAt     DateTime @default(now())
-  lastSeenAt      DateTime @default(now())
-  isExpired       Boolean  @default(false)
-  expiredAt       DateTime?
+  postedAt           DateTime?
+  firstSeenAt        DateTime          @default(now())
+  lastSeenAt         DateTime          @default(now())
+  isExpired          Boolean           @default(false)
+  expiredAt          DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   occurrences  JobOccurrence[]
   matchScores  MatchScore[]
@@ -202,7 +228,7 @@ model JobOccurrence {
   applicationUrl     String
   verificationStatus VerificationStatus @default(UNVERIFIED)
   rawLocation        String?
-  postedAt           DateTime
+  postedAt           DateTime?
   firstSeenAt        DateTime           @default(now())
   lastSeenAt         DateTime           @default(now())
   metadata           String?

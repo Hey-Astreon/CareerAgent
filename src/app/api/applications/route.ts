@@ -88,7 +88,7 @@ export async function POST(req: Request) {
           jobType: "Remote Full-Time",
           experienceLevel: "0-3 Years (Entry/Junior)",
           platform: "DIRECT_PORTAL",
-          location: "100% Remote",
+          location: "Remote",
           isRemote: true,
           postedAt: new Date(),
           rawDescription: `Tracked application for ${title} at ${company}.`,
@@ -164,7 +164,10 @@ export async function PATCH(req: Request) {
     });
 
     if (!existing) {
-      return NextResponse.json({ success: true, message: "State updated locally" });
+      return NextResponse.json(
+        { success: false, error: "Application not found" },
+        { status: 404 }
+      );
     }
 
     const updated = await db.application.update({

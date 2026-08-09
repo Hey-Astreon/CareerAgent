@@ -8,14 +8,15 @@ import {
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
-
-const TARGET_LEVER_COMPANIES = ["scaleai", "brex"];
+import { LEVER_BOARDS, classifyAtsResponse } from "./ats_directory";
 
 export class LeverProvider implements JobSourceProvider {
   name = "Lever ATS";
   providerKey = PlatformSource.LEVER;
-  timeoutMs = 10000;
+  timeoutMs = 15000;
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
@@ -23,49 +24,78 @@ export class LeverProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    for (const companySlug of TARGET_LEVER_COMPANIES) {
+    const companyFetches = LEVER_BOARDS.map(async (board) => {
       try {
-        const apiUrl = `https://api.lever.co/v0/postings/${companySlug}?mode=json`;
-        const res = await axios.get(apiUrl, { timeout: this.timeoutMs });
+        const apiUrl = `https://api.lever.co/v0/postings/${board.slug}?mode=json`;
+        const res = await axios.get(apiUrl, { timeout: 5000, validateStatus: () => true });
 
-        if (Array.isArray(res.data)) {
+        const status = classifyAtsResponse(res.status, Array.isArray(res.data), res.data?.length || 0);
+
+        if (status === "ACTIVE" && Array.isArray(res.data)) {
+          const companyJobs: NormalizedJob[] = [];
+          let companyDiscovered = 0;
+          let companyRejected = 0;
+
           for (const item of res.data) {
-            discoveredCount++;
+            companyDiscovered++;
             const title = item.text || "";
-            const locationName = item.categories?.location || "";
+            const location = item.categories?.location || "Remote";
             const rawContent = cleanHtmlText(item.descriptionPlain || item.description || "");
-            const jobUrl = item.hostedUrl;
+            const jobUrl = item.hostedUrl || item.applyUrl;
 
-            if (!isStrictlyRemoteDeveloperRole(title, locationName, rawContent)) {
-              rejectedCount++;
+            if (!isStrictlyRemoteDeveloperRole(title, location, rawContent)) {
+              companyRejected++;
               continue;
             }
 
-            const { company, companySlug: normSlug } = cleanCompanySlug(companySlug);
+            const { company, companySlug: normSlug } = cleanCompanySlug(board.slug);
+            const postedAt = item.createdAt ? new Date(item.createdAt) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
 
-            jobs.push({
+            const remoteScope = parseRemoteScope(location, rawContent);
+            const opportunitySignals = determineOpportunitySignals({
+              postedAt: validPostedAt,
+              applicationUrlType: "DIRECT_ATS",
+              canonicalAppUrl: jobUrl,
+              providerKey: this.providerKey,
+            });
+
+            companyJobs.push({
               sourceJobId: String(item.id),
               providerKey: PlatformSource.LEVER,
-              company,
+              company: board.name || company,
               companySlug: normSlug,
               title,
               category: determineCategory(title, rawContent),
               jobType: determineJobType(title, rawContent),
               experienceLevel: determineExperienceLevel(title, rawContent),
-              location: "100% Remote",
+              location: location || "Remote",
               isRemote: true,
-              remoteRegion: "Worldwide",
+              remoteScope,
               discoveryUrl: jobUrl,
               canonicalAppUrl: jobUrl,
-              postedAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+              applicationUrlType: "DIRECT_ATS",
+              verificationStatus: "VERIFIED_DIRECT_ATS",
+              postedAt: validPostedAt,
+              opportunitySignals,
               rawDescription: rawContent,
-              hasFullText: true,
+              hasFullText: rawContent.length > 30,
             });
           }
+
+          return { companyJobs, companyDiscovered, companyRejected };
         }
-      } catch (err) {
-        console.warn(`[Lever Provider Warning] Failed to parse ${companySlug}:`, (err as Error).message);
+      } catch {
+        // Ignore single board errors
       }
+      return { companyJobs: [], companyDiscovered: 0, companyRejected: 0 };
+    });
+
+    const results = await Promise.all(companyFetches);
+    for (const r of results) {
+      jobs.push(...r.companyJobs);
+      discoveredCount += r.companyDiscovered;
+      rejectedCount += r.companyRejected;
     }
 
     return {

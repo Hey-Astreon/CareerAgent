@@ -53,7 +53,7 @@ export async function scrapeWellfoundRemoteJobs(): Promise<ScrapedJob[]> {
                     platform: "WELLFOUND",
                     location: location,
                     isRemote: true,
-                    postedAt: new Date(item.postedAt || Date.now() - Math.floor(Math.random() * 86400000 * 3)),
+                    postedAt: item.postedAt ? new Date(item.postedAt) : null,
                     rawDescription: rawDesc,
                   });
                 }
@@ -84,7 +84,7 @@ export async function scrapeWellfoundRemoteJobs(): Promise<ScrapedJob[]> {
               platform: "WELLFOUND",
               location: "Remote",
               isRemote: true,
-              postedAt: new Date(Date.now() - Math.floor(Math.random() * 86400000 * 2)),
+              postedAt: null,
               rawDescription: `${title} role at ${company} on Wellfound. Remote software development position.`,
             });
           }
@@ -136,7 +136,7 @@ export async function scrapeWellfoundRemoteJobs(): Promise<ScrapedJob[]> {
         platform: "WELLFOUND",
         location: "Remote",
         isRemote: true,
-        postedAt: new Date(Date.now() - Math.floor(Math.random() * 86400000 * 2)),
+        postedAt: null,
         rawDescription: item.desc,
       });
     }

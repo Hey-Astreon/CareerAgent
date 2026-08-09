@@ -43,15 +43,81 @@ function calculatePureReviewerScore(coverLetter: string, summary: string, jobDes
 }
 
 /**
- * Drafter-Reviewer dual-agent loop powered by Multi-Provider LLM Router.
+ * Formats cover letter body into standard formal business letter structure.
  */
+export function formatFormalCoverLetter(
+  candidateName: string,
+  candidateTitle: string,
+  company: string,
+  jobTitle: string,
+  rawLetter: string
+): string {
+  const dateStr = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  // Extract core body paragraphs, stripping any pre-existing informal headers or greetings
+  let bodyText = rawLetter
+    .replace(/^Dear\s+[^,\n]+,?/gi, "")
+    .replace(/^To\s+the\s+Hiring\s+Manager,?/gi, "")
+    .replace(/Sincerely,[\s\S]*$/gi, "")
+    .replace(/Best regards,[\s\S]*$/gi, "")
+    .replace(/Thank you for your consideration\.?$/gi, "")
+    .trim();
+
+  // Split into clean paragraphs
+  const paragraphs = bodyText
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter((p) => p.length > 20);
+
+  // If parsing produced fewer than 3 paragraphs, construct well-structured paragraphs
+  if (paragraphs.length < 2) {
+    paragraphs.length = 0;
+    paragraphs.push(
+      `I am writing to express my strong enthusiasm for the ${jobTitle} position at ${company}. With a solid foundation in systems engineering, low-latency API development, and scalable cloud architectures, I am confident in my ability to make an immediate, meaningful contribution to your engineering team.`
+    );
+    paragraphs.push(
+      `Throughout my recent technical projects, I have specialized in architecting zero-knowledge cryptographic systems, concurrent microservices using TypeScript, Node.js, and Python FastAPI, and optimizing SQL schema structures for high-throughput queries. My hands-on focus on test coverage (Jest, PyTest), containerized environments, and CI/CD pipelines ensures robust, production-grade delivery.`
+    );
+    paragraphs.push(
+      `What draws me to ${company} is your commitment to technical excellence and product innovation. I am eager to apply my analytical problem-solving skills and technical background to solve complex engineering challenges alongside your team.`
+    );
+    paragraphs.push(
+      `Thank you for your time and consideration. I would welcome the opportunity to discuss how my technical skills and project achievements align with ${company}'s goals.`
+    );
+  }
+
+  const header = `${candidateName}
+${candidateTitle} | Candidate Target (0–3 Yrs)
+Location: Remote | Email: candidate@careeragent.ai | Phone: +1 (555) 019-2834
+
+${dateStr}
+
+Hiring Manager & Recruiting Team
+${company}
+
+RE: Professional Application for ${jobTitle}`;
+
+  const salutation = `Dear ${company} Hiring Team,`;
+
+  const signoff = `Sincerely,
+
+${candidateName}
+${candidateTitle}`;
+
+  return `${header}\n\n${salutation}\n\n${paragraphs.join("\n\n")}\n\n${signoff}`;
+}
+
 export async function generateTailoredKit(
   candidate: CandidateContext,
   jobTitle: string,
   company: string,
   jobDescription: string
 ): Promise<TailoredKitResult> {
-  const drafterSystemPrompt = `You are an elite Resume Architect tailoring an application kit for ${candidate.fullName}. Return ONLY JSON with keys: tailoredSummary, tailoredProjects (array of objects with title, techStack, bullets), coverLetter.`;
+  const drafterSystemPrompt = `You are an elite Resume Architect tailoring a formal application kit for ${candidate.fullName}. Return ONLY JSON with keys: tailoredSummary, tailoredProjects (array of objects with title, techStack, bullets), coverLetter.`;
 
   const drafterUserPrompt = `
 TARGET ROLE: ${jobTitle} at ${company}
@@ -67,7 +133,7 @@ ${candidate.masterProjects.map((p) => `- ${p.title} (${p.techStack}): ${p.archit
 TASKS:
 1. Write a high-impact, 4-line Professional Summary tailored to this role.
 2. Select top 3 flagship projects and rewrite 3 bullet points per project using bold category prefixes.
-3. Write a professional, compelling 4-paragraph Cover Letter addressed to the Hiring Manager at ${company}.
+3. Write a professional, compelling 4-paragraph Cover Letter body addressed to ${company}.
 `;
 
   try {
@@ -75,8 +141,16 @@ TASKS:
     if (draftRes.text) {
       const draft = JSON.parse(draftRes.text);
 
+      const formattedLetter = formatFormalCoverLetter(
+        candidate.fullName,
+        candidate.title,
+        company,
+        jobTitle,
+        draft.coverLetter || ""
+      );
+
       const dynamicScore = calculatePureReviewerScore(
-        draft.coverLetter || "",
+        formattedLetter,
         draft.tailoredSummary || "",
         jobDescription
       );
@@ -84,7 +158,7 @@ TASKS:
       return {
         tailoredSummary: draft.tailoredSummary,
         tailoredProjects: draft.tailoredProjects || [],
-        coverLetter: draft.coverLetter,
+        coverLetter: formattedLetter,
         atsReviewerScore: dynamicScore,
         reviewerFeedback: `${dynamicScore}% keyword density alignment for ${jobTitle} at ${company}. (Engine: ${draftRes.provider.toUpperCase()})`,
       };
@@ -105,21 +179,15 @@ function generateFallbackKit(
 ): TailoredKitResult {
   const summary = `Systems-focused Software Engineer with deep expertise in building low-latency REST APIs, concurrent microservices, and full-stack applications. Proficient across TypeScript, Node.js, Python FastAPI, C#/.NET Core, and Java Spring Boot, with a proven track record of architecting zero-knowledge cryptographic vaults and developer sandboxes tailored for ${jobTitle} roles at ${company}.`;
 
-  const coverLetter = `Dear Hiring Manager at ${company},
+  const formattedLetter = formatFormalCoverLetter(
+    candidate.fullName,
+    candidate.title,
+    company,
+    jobTitle,
+    ""
+  );
 
-I am writing to express my strong enthusiasm for the ${jobTitle} position at ${company}. With a deep technical foundation in systems engineering, low-latency microservice architectures, and full-stack web applications, I have consistently architected software platforms designed for high throughput, security, and developer productivity.
-
-In my recent engineering work, I developed low-latency API gateways, client-side zero-knowledge cryptographic vaults using AES-GCM (256-bit) payload encryption, and self-healing execution sandboxes using FastAPI and Tree-Sitter AST compilers. My experience extends to 3NF database schema normalization, Redis token-bucket caching, and automated testing suites (Jest, PyTest, xUnit) to guarantee 99.9% uptime.
-
-What excites me about ${company} is your commitment to technical excellence and product velocity. I am eager to bring my background in scalable API controllers, concurrent database transactions, and clean architecture to your engineering team.
-
-Thank you for your time and consideration. I look forward to the opportunity to discuss how my technical skills and project experience align with ${company}'s goals.
-
-Sincerely,
-${candidate.fullName}
-${candidate.title}`;
-
-  const dynamicScore = calculatePureReviewerScore(coverLetter, summary, jobDescription);
+  const dynamicScore = calculatePureReviewerScore(formattedLetter, summary, jobDescription);
 
   return {
     tailoredSummary: summary,
@@ -132,7 +200,7 @@ ${candidate.title}`;
         `Performance & Security: Implemented automated test coverage and zero-knowledge encryption protocols.`,
       ],
     })),
-    coverLetter,
+    coverLetter: formattedLetter,
     atsReviewerScore: dynamicScore,
     reviewerFeedback: `Tailored application kit calculated at ${dynamicScore}% keyword density alignment for ${jobTitle} at ${company}.`,
   };

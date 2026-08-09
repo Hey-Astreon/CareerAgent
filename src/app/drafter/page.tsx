@@ -38,7 +38,7 @@ interface KitData {
 }
 
 export default function ApplicationDrafterPage() {
-  const { activeProfile, activeProfileSlug } = useProfileStore();
+  const { activeProfileSlug } = useProfileStore();
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [kitData, setKitData] = useState<KitData | null>(null);
@@ -260,7 +260,7 @@ export default function ApplicationDrafterPage() {
                       </button>
                     </div>
 
-                    <div className="p-3.5 rounded-lg bg-zinc-900/60 border border-white/[0.06] text-xs font-sans text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+                    <div className="p-4 rounded-xl bg-zinc-950/80 border border-white/[0.1] text-xs font-sans text-zinc-200 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto font-mono shadow-inner border-l-2 border-l-indigo-500">
                       {kitData.coverLetter}
                     </div>
                   </div>

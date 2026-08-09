@@ -3,18 +3,20 @@ import { PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import {
   cleanCompanySlug,
+  cleanHtmlText,
   determineCategory,
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
-
-const TARGET_ASHBY_COMPANIES = ["linear", "supabase", "ramp"];
+import { ASHBY_BOARDS, classifyAtsResponse } from "./ats_directory";
 
 export class AshbyProvider implements JobSourceProvider {
   name = "Ashby ATS";
   providerKey = PlatformSource.ASHBY;
-  timeoutMs = 10000;
+  timeoutMs = 15000;
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
@@ -22,49 +24,78 @@ export class AshbyProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    for (const companySlug of TARGET_ASHBY_COMPANIES) {
+    const companyFetches = ASHBY_BOARDS.map(async (board) => {
       try {
-        const apiUrl = `https://api.ashbyhq.com/posting-api/job-board/${companySlug}`;
-        const res = await axios.get(apiUrl, { timeout: this.timeoutMs });
+        const apiUrl = `https://api.ashbyhq.com/posting-api/job-board/${board.slug}?includeCompensation=true`;
+        const res = await axios.get(apiUrl, { timeout: 5000, validateStatus: () => true });
 
-        if (res.data && Array.isArray(res.data.jobs)) {
+        const status = classifyAtsResponse(res.status, !!(res.data && Array.isArray(res.data.jobs)), res.data?.jobs?.length || 0);
+
+        if (status === "ACTIVE" && res.data && Array.isArray(res.data.jobs)) {
+          const companyJobs: NormalizedJob[] = [];
+          let companyDiscovered = 0;
+          let companyRejected = 0;
+
           for (const item of res.data.jobs) {
-            discoveredCount++;
+            companyDiscovered++;
             const title = item.title || "";
-            const locationName = item.location || "Remote";
-            const jobUrl = item.jobUrl || `https://jobs.ashbyhq.com/${companySlug}/${item.id}`;
-            const rawContent = item.descriptionPlain || title;
+            const location = item.locationName || "Remote";
+            const rawContent = cleanHtmlText(item.descriptionHtml || item.descriptionPlain || "");
+            const jobUrl = item.jobUrl || `https://jobs.ashbyhq.com/${board.slug}/${item.id}`;
 
-            if (!isStrictlyRemoteDeveloperRole(title, locationName, rawContent)) {
-              rejectedCount++;
+            if (!isStrictlyRemoteDeveloperRole(title, location, rawContent)) {
+              companyRejected++;
               continue;
             }
 
-            const { company, companySlug: normSlug } = cleanCompanySlug(companySlug);
+            const { company, companySlug: normSlug } = cleanCompanySlug(board.slug);
+            const postedAt = item.publishedAt ? new Date(item.publishedAt) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
 
-            jobs.push({
+            const remoteScope = parseRemoteScope(location, rawContent);
+            const opportunitySignals = determineOpportunitySignals({
+              postedAt: validPostedAt,
+              applicationUrlType: "DIRECT_ATS",
+              canonicalAppUrl: jobUrl,
+              providerKey: this.providerKey,
+            });
+
+            companyJobs.push({
               sourceJobId: String(item.id),
               providerKey: PlatformSource.ASHBY,
-              company,
+              company: board.name || company,
               companySlug: normSlug,
               title,
               category: determineCategory(title, rawContent),
               jobType: determineJobType(title, rawContent),
               experienceLevel: determineExperienceLevel(title, rawContent),
-              location: "100% Remote",
+              location: location || "Remote",
               isRemote: true,
-              remoteRegion: "Worldwide",
+              remoteScope,
               discoveryUrl: jobUrl,
               canonicalAppUrl: jobUrl,
-              postedAt: item.publishedAt ? new Date(item.publishedAt) : new Date(),
+              applicationUrlType: "DIRECT_ATS",
+              verificationStatus: "VERIFIED_DIRECT_ATS",
+              postedAt: validPostedAt,
+              opportunitySignals,
               rawDescription: rawContent,
-              hasFullText: true,
+              hasFullText: rawContent.length > 30,
             });
           }
+
+          return { companyJobs, companyDiscovered, companyRejected };
         }
-      } catch (err) {
-        console.warn(`[Ashby Provider Warning] Failed to parse ${companySlug}:`, (err as Error).message);
+      } catch {
+        // Ignore single board errors
       }
+      return { companyJobs: [], companyDiscovered: 0, companyRejected: 0 };
+    });
+
+    const results = await Promise.all(companyFetches);
+    for (const r of results) {
+      jobs.push(...r.companyJobs);
+      discoveredCount += r.companyDiscovered;
+      rejectedCount += r.companyRejected;
     }
 
     return {

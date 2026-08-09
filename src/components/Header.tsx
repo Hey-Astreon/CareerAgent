@@ -12,7 +12,6 @@ export function Header() {
     { name: "Live Feed", href: "/" },
     { name: "Match Studio", href: "/match" },
     { name: "Kit Drafter", href: "/drafter" },
-    { name: "Funnel Pipeline", href: "/tracker" },
   ];
 
   return (
@@ -28,25 +27,11 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Navigation Links */}
-        <nav className="hidden md:flex items-center gap-1">
-          {tabs.map((tab) => {
-            const isActive = pathname === tab.href;
-            return (
-              <Link
-                key={tab.name}
-                href={tab.href}
-                className={`px-3 py-1.5 rounded-md text-xs transition-colors ${
-                  isActive
-                    ? "bg-zinc-800/80 text-white font-semibold border border-white/10"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50 font-medium"
-                }`}
-              >
-                {tab.name}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Workspace Title Subtitle */}
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="text-zinc-500 font-mono text-xs">/</span>
+          <span className="text-xs font-mono text-zinc-400">AI Career Operating System</span>
+        </div>
       </div>
 
       {/* Right Actions: Command Search Badge & Candidate Profile Switcher */}

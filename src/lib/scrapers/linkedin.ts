@@ -59,9 +59,9 @@ export async function scrapeLinkedInRemoteJobs(): Promise<ScrapedJob[]> {
               jobType: determineJobType(title, title),
               experienceLevel: determineExperienceLevel(title, title),
               platform: PlatformSource.LINKEDIN,
-              location: rawLocation ? `Remote (${rawLocation})` : "100% Remote",
+              location: rawLocation ? `Remote (${rawLocation})` : "Remote",
               isRemote: true,
-              postedAt: datetime ? new Date(datetime) : new Date(),
+              postedAt: datetime ? new Date(datetime) : null,
               rawDescription: `Live LinkedIn Remote Posting for ${title} at ${company}. Location: ${rawLocation || "Remote"}. Apply directly on LinkedIn.`,
             });
           }

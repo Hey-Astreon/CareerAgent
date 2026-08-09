@@ -4,17 +4,19 @@ import { PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import {
   cleanCompanySlug,
+  cleanHtmlText,
   determineCategory,
   determineJobType,
   determineExperienceLevel,
   isStrictlyRemoteDeveloperRole,
+  parseRemoteScope,
+  determineOpportunitySignals,
 } from "./normalize";
 
 export class WellfoundProvider implements JobSourceProvider {
-  name = "Wellfound Startup Jobs";
+  name = "Wellfound (AngelList)";
   providerKey = PlatformSource.WELLFOUND;
   timeoutMs = 8000;
-  isOptional = true;
 
   async fetch(): Promise<ProviderResult> {
     const startTime = Date.now();
@@ -22,82 +24,78 @@ export class WellfoundProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    const queryRoles = ["react-developer", "full-stack-developer", "backend-developer", "software-engineer", "python-developer"];
+    try {
+      const url = "https://wellfound.com/role/l/software-engineer/remote";
+      const res = await axios.get(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        timeout: 4000,
+      });
 
-    for (const roleSlug of queryRoles) {
-      try {
-        const url = `https://wellfound.com/role/l/${roleSlug}/remote`;
-        const response = await axios.get(url, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-          },
-          timeout: this.timeoutMs,
-        });
+      if (res.data) {
+        const $ = cheerio.load(res.data);
+        const scriptTag = $('script[id="__NEXT_DATA__"]').html();
 
-        const $ = cheerio.load(response.data);
+        if (scriptTag) {
+          const nextData = JSON.parse(scriptTag);
+          const listings = nextData?.props?.pageProps?.jobListings || [];
 
-        // Parse job listing state script if present
-        $("script[id='__NEXT_DATA__']").each((_, element) => {
-          try {
-            const jsonText = $(element).html();
-            if (jsonText) {
-              const parsed = JSON.parse(jsonText);
-              const apolloState = parsed?.props?.pageProps?.apolloState || {};
+          for (const item of listings) {
+            discoveredCount++;
+            const title = item.title || "";
+            const companyName = item.companyName || "Startup";
+            const location = item.location || "Remote";
+            const rawDesc = cleanHtmlText(item.description || "");
+            const jobUrl = item.url || `https://wellfound.com/jobs/${item.id}`;
 
-              for (const key of Object.keys(apolloState)) {
-                if (key.startsWith("JobListing:")) {
-                  const item = apolloState[key];
-                  if (item && item.title && item.id) {
-                    discoveredCount++;
-                    const companyName = item.startupName || item.companyName || "Wellfound Startup";
-                    const title = item.title;
-                    const jobUrl = item.url || `https://wellfound.com/jobs/${item.id}`;
-                    const location = item.location || "Remote";
-                    const rawDesc = item.description || title;
-
-                    if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
-                      rejectedCount++;
-                      continue;
-                    }
-
-                    const { company, companySlug } = cleanCompanySlug(companyName);
-
-                    jobs.push({
-                      sourceJobId: String(item.id),
-                      providerKey: PlatformSource.WELLFOUND,
-                      company,
-                      companySlug,
-                      title,
-                      category: determineCategory(title, rawDesc),
-                      jobType: determineJobType(title, rawDesc),
-                      experienceLevel: determineExperienceLevel(title, rawDesc),
-                      location: location ? `Remote (${location})` : "100% Remote",
-                      isRemote: true,
-                      remoteRegion: location || "Remote",
-                      discoveryUrl: jobUrl,
-                      canonicalAppUrl: jobUrl,
-                      postedAt: item.postedAt ? new Date(item.postedAt) : new Date(),
-                      rawDescription: rawDesc,
-                      hasFullText: rawDesc.length > 30,
-                    });
-                  }
-                }
-              }
+            if (!isStrictlyRemoteDeveloperRole(title, location, rawDesc)) {
+              rejectedCount++;
+              continue;
             }
-          } catch {
-            // Ignore parse errors
+
+            const { company, companySlug } = cleanCompanySlug(companyName);
+            const postedAt = item.postedAt ? new Date(item.postedAt) : null;
+            const validPostedAt = postedAt && !isNaN(postedAt.getTime()) ? postedAt : null;
+            const remoteScope = parseRemoteScope(location, rawDesc);
+            const opportunitySignals = determineOpportunitySignals({
+              postedAt: validPostedAt,
+              applicationUrlType: "AGGREGATOR_PAGE",
+              canonicalAppUrl: jobUrl,
+              providerKey: PlatformSource.WELLFOUND,
+            });
+
+            jobs.push({
+              sourceJobId: String(item.id),
+              providerKey: PlatformSource.WELLFOUND,
+              company,
+              companySlug,
+              title,
+              category: determineCategory(title, rawDesc),
+              jobType: determineJobType(title, rawDesc),
+              experienceLevel: determineExperienceLevel(title, rawDesc),
+              location: location || "Remote",
+              isRemote: true,
+              remoteRegion: location || "Remote",
+              remoteScope,
+              discoveryUrl: jobUrl,
+              canonicalAppUrl: jobUrl,
+              applicationUrlType: "AGGREGATOR_PAGE",
+              verificationStatus: "VERIFIED_AGGREGATOR",
+              postedAt: validPostedAt,
+              opportunitySignals,
+              rawDescription: rawDesc,
+              hasFullText: rawDesc.length > 30,
+            });
           }
-        });
-      } catch (err) {
-        console.warn(`[Wellfound Provider Warning] Query ${roleSlug} failed:`, (err as Error).message);
+        }
       }
+    } catch (err) {
+      console.warn("[Wellfound Provider Warning] Query failed:", (err as Error).message);
     }
 
-    // ZERO fabricated fallback! Return real jobs or empty list.
     return {
-      providerKey: this.providerKey,
+      providerKey: PlatformSource.WELLFOUND,
       jobs,
       success: true,
       durationMs: Date.now() - startTime,

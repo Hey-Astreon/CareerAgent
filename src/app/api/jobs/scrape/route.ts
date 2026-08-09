@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runAllProviders, ingestNormalizedJobs } from "@/lib/providers/registry";
+import { parseRemoteScope } from "@/lib/providers/normalize";
 
 function interleavePlatforms<T extends { platform: string }>(jobsList: T[]): T[] {
   const groups: Record<string, T[]> = {};
@@ -39,13 +40,27 @@ export async function POST() {
     // Dual-ingest into Opportunity/Occurrence and JobPosting
     const { insertedCount, updatedCount } = await ingestNormalizedJobs(allJobs);
 
+    const STALENESS_SAFETY_NET_MS = 7 * 24 * 60 * 60 * 1000;
+    const safetyCutoff = new Date(Date.now() - STALENESS_SAFETY_NET_MS);
+
     const rawActive = await db.jobPosting.findMany({
-      where: { isExpired: false },
-      orderBy: { postedAt: "desc" },
+      where: {
+        isExpired: false,
+        lastSeenAt: { gte: safetyCutoff },
+      },
+      orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
       take: 500,
     });
 
-    const mixedJobs = interleavePlatforms(rawActive);
+    const populatedActive = rawActive.map((j) => {
+      let scope = j.remoteScope;
+      if (!scope || scope === "UNKNOWN") {
+        scope = parseRemoteScope(j.location || "", j.rawDescription || "");
+      }
+      return { ...j, remoteScope: scope };
+    });
+
+    const mixedJobs = interleavePlatforms(populatedActive);
 
     return NextResponse.json({
       success: true,
@@ -73,13 +88,27 @@ export async function POST() {
 
 export async function GET() {
   try {
+    const STALENESS_SAFETY_NET_MS = 7 * 24 * 60 * 60 * 1000;
+    const safetyCutoff = new Date(Date.now() - STALENESS_SAFETY_NET_MS);
+
     const rawActive = await db.jobPosting.findMany({
-      where: { isExpired: false },
-      orderBy: { postedAt: "desc" },
+      where: {
+        isExpired: false,
+        lastSeenAt: { gte: safetyCutoff },
+      },
+      orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
       take: 500,
     });
 
-    const mixedJobs = interleavePlatforms(rawActive);
+    const populatedActive = rawActive.map((j) => {
+      let scope = j.remoteScope;
+      if (!scope || scope === "UNKNOWN") {
+        scope = parseRemoteScope(j.location || "", j.rawDescription || "");
+      }
+      return { ...j, remoteScope: scope };
+    });
+
+    const mixedJobs = interleavePlatforms(populatedActive);
 
     return NextResponse.json({ success: true, jobs: mixedJobs });
   } catch (error) {

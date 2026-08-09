@@ -3,24 +3,65 @@ import { db } from "@/lib/db";
 import { generateTailoredKit } from "@/lib/ai/drafter";
 import { validatePDFExtractability } from "@/lib/ai/ats_validator";
 
+/**
+ * Validates and sanitizes a file path to prevent path traversal attacks.
+ */
+function sanitizeFilePath(inputPath?: string | null): string {
+  if (!inputPath || typeof inputPath !== "string") {
+    return "/resumes/master.pdf";
+  }
+  const clean = inputPath.replace(/\0/g, "").trim();
+  if (clean.includes("..") || clean.includes("/..") || clean.includes("\\..")) {
+    const basename = clean.split(/[/\\]/).pop() || "master.pdf";
+    const safeName = basename.replace(/[^a-zA-Z0-9_.-]/g, "_");
+    return `/resumes/${safeName}`;
+  }
+  return clean;
+}
+
+/**
+ * Sanitizes user-facing text to prevent XSS.
+ */
+function sanitizeText(inputText?: string | null): string {
+  if (!inputText || typeof inputText !== "string") return "";
+  return inputText.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").trim();
+}
+
 export async function POST(req: Request) {
   try {
-    const { profileSlug, jobPostingId } = await req.json();
-
-    if (!profileSlug || !jobPostingId) {
+    let body: { profileSlug?: unknown; jobPostingId?: unknown };
+    try {
+      body = await req.json();
+    } catch {
       return NextResponse.json(
-        { success: false, error: "profileSlug and jobPostingId are required" },
+        { success: false, error: "Invalid JSON body" },
         { status: 400 }
       );
     }
 
+    const { profileSlug, jobPostingId } = body || {};
+
+    if (
+      typeof profileSlug !== "string" ||
+      !profileSlug.trim() ||
+      typeof jobPostingId !== "string" ||
+      !jobPostingId.trim()
+    ) {
+      return NextResponse.json(
+        { success: false, error: "profileSlug and jobPostingId are required strings" },
+        { status: 400 }
+      );
+    }
+
+    const sanitizedSlug = profileSlug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+
     const profile = await db.profile.findUnique({
-      where: { slug: profileSlug },
+      where: { slug: sanitizedSlug },
       include: { projects: true, virtualExps: true },
     });
 
     const job = await db.jobPosting.findUnique({
-      where: { id: jobPostingId },
+      where: { id: jobPostingId.trim() },
     });
 
     if (!profile || !job) {
@@ -30,13 +71,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if application kit already generated
-    let application = await db.application.findFirst({
-      where: {
-        profileId: profile.id,
-        jobPostingId: job.id,
-      },
-    });
+    // Path Safety & Sanitization
+    const safeCvPath = sanitizeFilePath(profile.masterResumePath);
 
     // Run Drafter-Reviewer Agent Loop
     const kit = await generateTailoredKit(
@@ -59,43 +95,20 @@ export async function POST(req: Request) {
       job.rawDescription
     );
 
-    // Validate PDF extractability score dynamically for this specific job
-    const atsCheck = await validatePDFExtractability(profile.masterResumePath, job.title, job.rawDescription);
-
-    if (application) {
-      application = await db.application.update({
-        where: { id: application.id },
-        data: {
-          tailoredCvPath: profile.masterResumePath,
-          tailoredCoverLetter: kit.coverLetter,
-          atsExtractabilityScore: atsCheck.extractabilityScore,
-          updatedAt: new Date(),
-        },
-      });
-    } else {
-      application = await db.application.create({
-        data: {
-          profileId: profile.id,
-          jobPostingId: job.id,
-          status: "SHORTLISTED",
-          tailoredCvPath: profile.masterResumePath,
-          tailoredCoverLetter: kit.coverLetter,
-          atsExtractabilityScore: atsCheck.extractabilityScore,
-        },
-      });
-    }
+    // Validate PDF extractability score dynamically for this job
+    const atsCheck = await validatePDFExtractability(safeCvPath, job.title, job.rawDescription);
+    const safeCoverLetter = sanitizeText(kit.coverLetter);
 
     return NextResponse.json({
       success: true,
-      applicationId: application.id,
       kit: {
         tailoredSummary: kit.tailoredSummary,
         tailoredProjects: kit.tailoredProjects,
-        coverLetter: kit.coverLetter,
+        coverLetter: safeCoverLetter,
         atsReviewerScore: kit.atsReviewerScore,
         reviewerFeedback: kit.reviewerFeedback,
         atsExtractabilityScore: atsCheck.extractabilityScore,
-        pdfPath: profile.masterResumePath,
+        pdfPath: safeCvPath,
       },
     });
   } catch (error) {

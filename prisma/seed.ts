@@ -1,56 +1,26 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, PlatformSource } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import path from "path";
-import { scrapeGreenhouseCompany, scrapeLeverCompany } from "../src/lib/scrapers/ats";
-import { scrapeAshbyCompany } from "../src/lib/scrapers/ashby";
-import { scrapeLinkedInRemoteJobs } from "../src/lib/scrapers/linkedin";
-import { scrapeYCJobs } from "../src/lib/scrapers/playwright";
+import { runAllProviders } from "../src/lib/providers/registry";
+import { generateUrlHash } from "../src/lib/providers/dedup";
 
 const dbPath = path.join(process.cwd(), "prisma", "dev.db");
 const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
 const db = new PrismaClient({ adapter });
 
-const TARGET_GREENHOUSE_COMPANIES = [
-  "vercel",
-  "stripe",
-  "gitlab",
-  "discord",
-  "cloudflare",
-  "coinbase",
-  "doordash",
-  "hashicorp",
-  "automattic",
-  "elastic",
-  "reddit",
-  "airtable",
-  "webflow",
-  "sourcegraph",
-  "zapier",
-  "docker",
-  "datadog",
-  "sentry",
-  "cockroachlabs",
-  "databricks",
-  "mongodb",
-];
-
-const TARGET_LEVER_COMPANIES = ["scaleai", "brex"];
-const TARGET_ASHBY_COMPANIES = ["linear", "supabase", "ramp"];
-
 async function main() {
-  console.log("Seeding database with Roushan Kumar & Ayushi Raj profiles and ingesting MULTI-PLATFORM REAL live remote postings (LinkedIn, Greenhouse, Lever, Ashby, YC)...");
-
-  // Reset existing data cleanly
-  await db.application.deleteMany();
-  await db.matchScore.deleteMany();
-  await db.jobPosting.deleteMany();
-  await db.virtualExperience.deleteMany();
-  await db.project.deleteMany();
-  await db.profile.deleteMany();
+  console.log("[Seed] Syncing candidate profiles and ingesting real live remote postings...");
 
   // 1. Roushan Kumar Profile
-  const roushan = await db.profile.create({
-    data: {
+  const roushan = await db.profile.upsert({
+    where: { slug: "roushan" },
+    update: {
+      fullName: "ROUSHAN KUMAR",
+      title: "Systems Engineer | Backend Architect | AI Developer Tools Specialist",
+      email: "roushanraut404@gmail.com",
+      masterResumePath: "x:/job_engine/Roushan_Kumar/Roushan_Kumar_Resume.pdf",
+    },
+    create: {
       slug: "roushan",
       fullName: "ROUSHAN KUMAR",
       title: "Systems Engineer | Backend Architect | AI Developer Tools Specialist",
@@ -133,8 +103,15 @@ async function main() {
   });
 
   // 2. Ayushi Raj Profile
-  const ayushi = await db.profile.create({
-    data: {
+  const ayushi = await db.profile.upsert({
+    where: { slug: "ayushi" },
+    update: {
+      fullName: "AYUSHI RAJ",
+      title: "AI-Powered Full Stack Software Engineer | Backend & Systems Specialist",
+      email: "ayushi29507@gmail.com",
+      masterResumePath: "x:/job_engine/Ayushi_Raj/Ayushi_Raj_Resume.pdf",
+    },
+    create: {
       slug: "ayushi",
       fullName: "AYUSHI RAJ",
       title: "AI-Powered Full Stack Software Engineer | Backend & Systems Specialist",
@@ -216,62 +193,47 @@ async function main() {
     },
   });
 
-  // 3. Ingest MULTI-PLATFORM Real Live Remote Postings (LinkedIn, Greenhouse, Lever, Ashby, YC)
-  const realJobs = [];
-
-  console.log("-> Scraping LinkedIn Remote Jobs...");
-  const linkedinJobs = await scrapeLinkedInRemoteJobs();
-  realJobs.push(...linkedinJobs);
-
-  console.log("-> Scraping Greenhouse Company Boards...");
-  for (const company of TARGET_GREENHOUSE_COMPANIES) {
-    const scraped = await scrapeGreenhouseCompany(company);
-    realJobs.push(...scraped);
-  }
-
-  console.log("-> Scraping Lever Company Boards...");
-  for (const company of TARGET_LEVER_COMPANIES) {
-    const scraped = await scrapeLeverCompany(company);
-    realJobs.push(...scraped);
-  }
-
-  console.log("-> Scraping Ashby Company Boards...");
-  for (const company of TARGET_ASHBY_COMPANIES) {
-    const scraped = await scrapeAshbyCompany(company);
-    realJobs.push(...scraped);
-  }
-
-  console.log("-> Scraping YC Remote Jobs...");
-  const ycJobs = await scrapeYCJobs();
-  realJobs.push(...ycJobs);
+  // 3. Multi-platform Provider Ingestion
+  console.log("[Seed] Ingesting multi-platform remote developer postings...");
+  const syncResult = await runAllProviders();
 
   let insertedCount = 0;
-  for (const j of realJobs) {
-    const existing = await db.jobPosting.findUnique({
-      where: { urlHash: j.urlHash },
-    });
-    if (!existing) {
-      await db.jobPosting.create({
-        data: {
-          urlHash: j.urlHash,
-          url: j.url,
-          company: j.company,
-          title: j.title,
-          category: j.category,
-          jobType: j.jobType,
-          experienceLevel: j.experienceLevel,
-          platform: j.platform,
-          location: j.location,
-          isRemote: j.isRemote,
-          postedAt: j.postedAt,
-          rawDescription: j.rawDescription,
+  for (const job of syncResult.allJobs) {
+    try {
+      const urlHash = generateUrlHash(job.canonicalAppUrl || job.discoveryUrl);
+      await db.jobPosting.upsert({
+        where: { urlHash },
+        update: {
+          isRemote: true,
+          location: job.location,
+          rawDescription: job.rawDescription,
+        },
+        create: {
+          urlHash,
+          url: job.canonicalAppUrl || job.discoveryUrl,
+          platform: job.providerKey as PlatformSource,
+          company: job.company,
+          title: job.title,
+          category: job.category,
+          jobType: job.jobType,
+          experienceLevel: job.experienceLevel,
+          location: job.location,
+          isRemote: true,
+          remoteScope: job.remoteScope,
+          opportunitySignals: JSON.stringify(job.opportunitySignals || []),
+          postedAt: job.postedAt,
+          rawDescription: job.rawDescription,
+          hasFullText: job.hasFullText,
         },
       });
       insertedCount++;
+    } catch (err) {
+      console.warn("[Seed Error] Failed to upsert job:", (err as Error).message);
     }
   }
 
-  console.log(`Successfully seeded profiles & ingested REAL live jobs across LINKEDIN, GREENHOUSE, LEVER, ASHBY & YC:\n - Roushan (ID: ${roushan.id})\n - Ayushi (ID: ${ayushi.id})\n - Real Live Scraped Postings: ${insertedCount}`);
+  const finalCount = await db.jobPosting.count();
+  console.log(`[Seed Complete] Profiles ready (Roushan: ${roushan.id}, Ayushi: ${ayushi.id}). Active postings in SQLite: ${finalCount}`);
 }
 
 main()
