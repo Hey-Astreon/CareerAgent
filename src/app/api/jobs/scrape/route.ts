@@ -40,16 +40,11 @@ export async function POST() {
     // Dual-ingest into Opportunity/Occurrence and JobPosting
     const { insertedCount, updatedCount } = await ingestNormalizedJobs(allJobs);
 
-    const STALENESS_SAFETY_NET_MS = 7 * 24 * 60 * 60 * 1000;
-    const safetyCutoff = new Date(Date.now() - STALENESS_SAFETY_NET_MS);
-
     const rawActive = await db.jobPosting.findMany({
       where: {
         isExpired: false,
-        lastSeenAt: { gte: safetyCutoff },
       },
       orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
-      take: 500,
     });
 
     const populatedActive = rawActive.map((j) => {
@@ -88,16 +83,11 @@ export async function POST() {
 
 export async function GET() {
   try {
-    const STALENESS_SAFETY_NET_MS = 7 * 24 * 60 * 60 * 1000;
-    const safetyCutoff = new Date(Date.now() - STALENESS_SAFETY_NET_MS);
-
     const rawActive = await db.jobPosting.findMany({
       where: {
         isExpired: false,
-        lastSeenAt: { gte: safetyCutoff },
       },
       orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
-      take: 500,
     });
 
     const populatedActive = rawActive.map((j) => {

@@ -207,6 +207,7 @@ async function main() {
           isRemote: true,
           location: job.location,
           rawDescription: job.rawDescription,
+          lastSeenAt: new Date(),
         },
         create: {
           urlHash,
