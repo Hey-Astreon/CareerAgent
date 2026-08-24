@@ -17,12 +17,12 @@
 
 /* Custom Minimalist Scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #09090b;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -34,13 +34,32 @@
   background: #3f3f46;
 }
 
+/* Custom Thin Scrollbar for Split Pane */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 /* Glass & Card Micro-Borders */
 .card-clean {
   background: #121215;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
 }
 
 .card-clean:hover {
   border-color: rgba(255, 255, 255, 0.16);
 }
+
