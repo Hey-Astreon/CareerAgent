@@ -26,6 +26,7 @@ export class BuiltInProvider implements JobSourceProvider {
     const urls = [
       "https://builtin.com/jobs/remote/dev-engineering",
       "https://builtin.com/jobs/remote/entry-level/dev-engineering",
+      "https://builtin.com/jobs/remote/internships/dev-engineering",
     ];
 
     for (const url of urls) {

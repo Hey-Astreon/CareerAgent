@@ -8,10 +8,13 @@ const SWE_TITLE_KEYWORDS = [
   "systems", "frontend", "front-end", "platform", "infrastructure",
   "web developer", "python developer", "data engineer", "devops", "sre",
   "mobile developer", "ios developer", "android developer", "coder", "programmer",
+  "intern", "internship", "trainee", "apprentice", "co-op", "coop", "fellow",
+  "sde", "sdet", "react", "python", "golang", "rust", "node", "javascript",
+  "typescript", "data scientist", "cloud engineer", "qa engineer", "tester",
 ];
 
 const EXCLUDED_TITLES = [
-  "account executive", "recruiter", "talent acquisition", "sales", "business development", "bde", "sdr", "bdr", "account manager", "growth manager", "deal strategist", "sales engineer",
+  "account executive", "recruiter", "talent acquisition", "business development", "bde", "sdr", "bdr", "account manager", "growth manager", "deal strategist", "sales engineer", "sales representative", "sales associate", "sales manager", "sales consultant", "sales director",
   "product manager", "project manager", "program manager", "product owner", "scrum master", "agile coach",
   "designer", "ux", "ui designer", "product designer", "graphic designer", "content writer", "copywriter", "seo", "editor",
   "support engineer", "customer support", "technical support", "customer success", "support specialist", "helpdesk", "community manager", "social media", "operations analyst", "human resources", "hr ", "people ops", "office manager", "executive assistant", "admin",

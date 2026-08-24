@@ -41,7 +41,7 @@ export class Micro1Provider implements JobSourceProvider {
         apiUrl,
         {
           action: "get_all_jobs",
-          filters: { type: ["EXPERT"] },
+          filters: {},
         },
         {
           headers: {

@@ -23,7 +23,14 @@ export class LinkedInProvider implements JobSourceProvider {
     let discoveredCount = 0;
     let rejectedCount = 0;
 
-    const queries = ["software engineer", "full stack developer", "backend engineer", "frontend developer"];
+    const queries = [
+      "software engineer",
+      "software engineer intern",
+      "developer intern",
+      "full stack developer",
+      "backend engineer",
+      "frontend developer",
+    ];
 
     for (const query of queries) {
       try {

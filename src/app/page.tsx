@@ -173,6 +173,9 @@ export default function Home() {
   const [selectedPlatform, setSelectedPlatform] = useState("ALL");
   const [minMatchScore, setMinMatchScore] = useState<"ALL" | "80" | "70" | "50">("ALL");
   const [eligibilityFilter, setEligibilityFilter] = useState<"ALL" | "ELIGIBLE_ONLY" | "HIDE_INELIGIBLE">("ALL");
+  const [maxAgeDays, setMaxAgeDays] = useState<"ALL" | "1" | "3" | "7" | "14">("ALL");
+  const [onlyInternships, setOnlyInternships] = useState(false);
+  const [onlyWorldwide, setOnlyWorldwide] = useState(false);
   const [scoresMap, setScoresMap] = useState<Record<string, FeedScoreInfo>>({});
   
   // View Modes: 'split' (Master-Detail), 'list' (Full Table), 'grid' (Bento Cards)
@@ -289,21 +292,28 @@ export default function Home() {
     const counts: Record<string, number> = {
       GREENHOUSE: 0,
       ASHBY: 0,
-      HIRING_CAFE: 0,
+      LEVER: 0,
+      WORKABLE: 0,
+      SMARTRECRUITERS: 0,
+      RECRUITEE: 0,
+      HIMALAYAS: 0,
+      REMOTIVE: 0,
+      ARBEITNOW: 0,
+      REMOTEOK: 0,
+      JOBICY: 0,
       SIMPLIFY: 0,
-      TRUEUP: 0,
       ARC_DEV: 0,
       BUILTIN: 0,
-      THEHUB: 0,
+      HN_HIRING: 0,
       LINKEDIN: 0,
       MICRO1: 0,
-      HN_HIRING: 0,
       WEWORKREMOTELY: 0,
-      HIMALAYAS: 0,
-      JOBICY: 0,
-      NAUKRI: 0,
+      HIRING_CAFE: 0,
+      TRUEUP: 0,
+      THEHUB: 0,
       YC_JOBS: 0,
       WELLFOUND: 0,
+      NAUKRI: 0,
     };
     for (const j of eligibleJobs) {
       const p = j.platform?.toUpperCase();
@@ -313,7 +323,7 @@ export default function Home() {
   }, [eligibleJobs]);
 
   const filteredJobs = useMemo(() => {
-    return eligibleJobs.filter((job) => {
+    const result = eligibleJobs.filter((job) => {
       const matchesSearch =
         !searchTerm ||
         job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -360,6 +370,44 @@ export default function Home() {
         }
       }
 
+      // Internship / Early Career Gate
+      if (onlyInternships) {
+        const type = (job.jobType || determineJobType(job.title, job.rawDescription)).toLowerCase();
+        const exp = (job.experienceLevel || determineExperienceLevel(job.title, job.rawDescription)).toLowerCase();
+        const isInternOrFresher =
+          type.includes("intern") ||
+          exp.includes("fresher") ||
+          exp.includes("0-1") ||
+          titleLower.includes("intern") ||
+          titleLower.includes("trainee") ||
+          titleLower.includes("co-op") ||
+          titleLower.includes("apprentice");
+        if (!isInternOrFresher) return false;
+      }
+
+      // Worldwide Remote Gate
+      if (onlyWorldwide) {
+        const locLower = (job.location || "").toLowerCase();
+        const regLower = (job.remoteRegion || "").toLowerCase();
+        const isWw =
+          locLower.includes("worldwide") ||
+          locLower.includes("anywhere") ||
+          locLower.includes("global") ||
+          regLower.includes("worldwide") ||
+          job.remoteScope === "WORLDWIDE";
+        if (!isWw) return false;
+      }
+
+      // Strict Freshness Gate (1d, 3d, 7d, 14d)
+      if (maxAgeDays !== "ALL") {
+        const maxDaysNum = Number(maxAgeDays);
+        if (job.postedAt) {
+          const postedTime = new Date(job.postedAt).getTime();
+          const ageDays = (nowTick - postedTime) / (1000 * 60 * 60 * 24);
+          if (ageDays > maxDaysNum) return false;
+        }
+      }
+
       return (
         matchesSearch &&
         matchesCategory &&
@@ -368,7 +416,26 @@ export default function Home() {
         matchesScore
       );
     });
-  }, [eligibleJobs, searchTerm, selectedCategory, selectedPlatform, minMatchScore, eligibilityFilter, scoresMap]);
+
+    // Sort by freshness priority: Postings with known recent postedAt dates appear first
+    return result.sort((a, b) => {
+      const timeA = a.postedAt ? new Date(a.postedAt).getTime() : new Date(a.createdAt).getTime();
+      const timeB = b.postedAt ? new Date(b.postedAt).getTime() : new Date(b.createdAt).getTime();
+      return timeB - timeA;
+    });
+  }, [
+    eligibleJobs,
+    searchTerm,
+    selectedCategory,
+    selectedPlatform,
+    minMatchScore,
+    eligibilityFilter,
+    onlyInternships,
+    onlyWorldwide,
+    maxAgeDays,
+    nowTick,
+    scoresMap,
+  ]);
 
   // Keep active job valid when filters change
   useEffect(() => {
@@ -498,12 +565,19 @@ export default function Home() {
                 <option value="ALL" className="bg-zinc-900 text-white">All Sources ({eligibleJobs.length})</option>
                 <option value="GREENHOUSE" className="bg-zinc-900 text-white">Greenhouse ({platformCounts.GREENHOUSE || 0})</option>
                 <option value="ASHBY" className="bg-zinc-900 text-white">Ashby ({platformCounts.ASHBY || 0})</option>
+                <option value="LEVER" className="bg-zinc-900 text-white">Lever ({platformCounts.LEVER || 0})</option>
+                <option value="WORKABLE" className="bg-zinc-900 text-white">Workable ({platformCounts.WORKABLE || 0})</option>
+                <option value="SMARTRECRUITERS" className="bg-zinc-900 text-white">SmartRecruiters ({platformCounts.SMARTRECRUITERS || 0})</option>
+                <option value="RECRUITEE" className="bg-zinc-900 text-white">Recruitee ({platformCounts.RECRUITEE || 0})</option>
+                <option value="HIMALAYAS" className="bg-zinc-900 text-white">Himalayas ({platformCounts.HIMALAYAS || 0})</option>
+                <option value="REMOTIVE" className="bg-zinc-900 text-white">Remotive ({platformCounts.REMOTIVE || 0})</option>
+                <option value="ARBEITNOW" className="bg-zinc-900 text-white">Arbeitnow ({platformCounts.ARBEITNOW || 0})</option>
+                <option value="REMOTEOK" className="bg-zinc-900 text-white">RemoteOK ({platformCounts.REMOTEOK || 0})</option>
+                <option value="JOBICY" className="bg-zinc-900 text-white">Jobicy ({platformCounts.JOBICY || 0})</option>
                 <option value="SIMPLIFY" className="bg-zinc-900 text-white">Simplify ({platformCounts.SIMPLIFY || 0})</option>
                 <option value="ARC_DEV" className="bg-zinc-900 text-white">Arc.dev ({platformCounts.ARC_DEV || 0})</option>
                 <option value="BUILTIN" className="bg-zinc-900 text-white">Built In ({platformCounts.BUILTIN || 0})</option>
                 <option value="LINKEDIN" className="bg-zinc-900 text-white">LinkedIn ({platformCounts.LINKEDIN || 0})</option>
-                <option value="HIMALAYAS" className="bg-zinc-900 text-white">Himalayas ({platformCounts.HIMALAYAS || 0})</option>
-                <option value="JOBICY" className="bg-zinc-900 text-white">Jobicy ({platformCounts.JOBICY || 0})</option>
                 <option value="HN_HIRING" className="bg-zinc-900 text-white">HN Hiring ({platformCounts.HN_HIRING || 0})</option>
                 <option value="WEWORKREMOTELY" className="bg-zinc-900 text-white">WeWorkRemotely ({platformCounts.WEWORKREMOTELY || 0})</option>
                 <option value="MICRO1" className="bg-zinc-900 text-white">micro1 ({platformCounts.MICRO1 || 0})</option>
@@ -528,12 +602,31 @@ export default function Home() {
               </select>
             </div>
 
+            {/* Freshness Filter */}
+            <div className="flex items-center bg-zinc-900/90 px-3 py-1.5 rounded-xl border border-white/[0.08]">
+              <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider mr-2 shrink-0">Freshness:</span>
+              <select
+                value={maxAgeDays}
+                onChange={(e) => setMaxAgeDays(e.target.value as any)}
+                className="bg-transparent text-white text-xs font-mono cursor-pointer focus:outline-none pr-1"
+              >
+                <option value="ALL" className="bg-zinc-900 text-white">All Time</option>
+                <option value="1" className="bg-zinc-900 text-white">⚡ Past 24 Hours</option>
+                <option value="3" className="bg-zinc-900 text-white">🔥 Past 3 Days</option>
+                <option value="7" className="bg-zinc-900 text-white">✨ Past 7 Days (&lt; 1 Week)</option>
+                <option value="14" className="bg-zinc-900 text-white">📅 Past 14 Days</option>
+              </select>
+            </div>
+
             {/* Reset Filters Button */}
-            {(selectedPlatform !== "ALL" || selectedCategory !== "ALL" || searchTerm) && (
+            {(selectedPlatform !== "ALL" || selectedCategory !== "ALL" || maxAgeDays !== "ALL" || onlyInternships || onlyWorldwide || searchTerm) && (
               <button
                 onClick={() => {
                   setSelectedPlatform("ALL");
                   setSelectedCategory("ALL");
+                  setMaxAgeDays("ALL");
+                  setOnlyInternships(false);
+                  setOnlyWorldwide(false);
                   setSearchTerm("");
                 }}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 text-xs font-mono transition-colors"
@@ -585,6 +678,59 @@ export default function Home() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Quick Filter Pills Row */}
+        <div className="mt-3 pt-3 border-t border-white/[0.05] flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Quick Filters:</span>
+          
+          <button
+            onClick={() => setOnlyInternships(!onlyInternships)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 border ${
+              onlyInternships
+                ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm font-semibold"
+                : "bg-zinc-900/60 text-zinc-400 border-white/[0.06] hover:text-white hover:border-white/[0.15]"
+            }`}
+          >
+            <span>🎓 Internships & Freshers Only</span>
+          </button>
+
+          <button
+            onClick={() => setMaxAgeDays(maxAgeDays === "7" ? "ALL" : "7")}
+            className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 border ${
+              maxAgeDays === "7"
+                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm font-semibold"
+                : "bg-zinc-900/60 text-zinc-400 border-white/[0.06] hover:text-white hover:border-white/[0.15]"
+            }`}
+          >
+            <span>⚡ Posted &lt; 7 Days Only</span>
+          </button>
+
+          <button
+            onClick={() => setMaxAgeDays(maxAgeDays === "1" ? "ALL" : "1")}
+            className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 border ${
+              maxAgeDays === "1"
+                ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm font-semibold"
+                : "bg-zinc-900/60 text-zinc-400 border-white/[0.06] hover:text-white hover:border-white/[0.15]"
+            }`}
+          >
+            <span>🚀 Past 24 Hours</span>
+          </button>
+
+          <button
+            onClick={() => setOnlyWorldwide(!onlyWorldwide)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 border ${
+              onlyWorldwide
+                ? "bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm font-semibold"
+                : "bg-zinc-900/60 text-zinc-400 border-white/[0.06] hover:text-white hover:border-white/[0.15]"
+            }`}
+          >
+            <span>🌍 Worldwide Remote Only</span>
+          </button>
+
+          <span className="ml-auto text-[11px] font-mono text-zinc-500">
+            Showing <strong className="text-white">{filteredJobs.length}</strong> of {eligibleJobs.length} remote roles
+          </span>
         </div>
       </div>
 

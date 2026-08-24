@@ -26,7 +26,7 @@ export class GreenhouseProvider implements JobSourceProvider {
 
     const companyFetches = GREENHOUSE_BOARDS.map(async (board) => {
       try {
-        const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${board.slug}/jobs`;
+        const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${board.slug}/jobs?content=true`;
         const res = await axios.get(apiUrl, { timeout: 5000, validateStatus: () => true });
 
         const status = classifyAtsResponse(res.status, !!(res.data && Array.isArray(res.data.jobs)), res.data?.jobs?.length || 0);

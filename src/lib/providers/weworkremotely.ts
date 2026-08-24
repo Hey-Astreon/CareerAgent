@@ -21,31 +21,28 @@ export class WeWorkRemotelyProvider implements JobSourceProvider {
     let jobsDiscovered = 0;
     let jobsRejected = 0;
 
-    try {
-      const response = await fetch("https://weworkremotely.com/categories/remote-programming-jobs.rss", {
-        headers: {
-          "User-Agent": "CareerAgent/2.0 (Verified Job Discovery Engine)",
-        },
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
+    const feeds = [
+      "https://weworkremotely.com/categories/remote-programming-jobs.rss",
+      "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
+      "https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss",
+      "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss",
+      "https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss",
+    ];
 
-      if (!response.ok) {
-        return {
-          providerKey: this.providerKey,
-          jobs: [],
-          success: false,
-          error: `HTTP ${response.status}`,
-          durationMs: Date.now() - startTime,
-          jobsDiscovered: 0,
-          jobsRejected: 0,
-        };
-      }
+    for (const feedUrl of feeds) {
+      try {
+        const response = await fetch(feedUrl, {
+          headers: {
+            "User-Agent": "CareerAgent/2.0 (Verified Job Discovery Engine)",
+          },
+          signal: AbortSignal.timeout(this.timeoutMs),
+        });
 
-      const xmlText = await response.text();
+        if (!response.ok) continue;
 
-      // Simple, robust XML Item Parser for WeWorkRemotely RSS
-      const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
-      let match: RegExpExecArray | null;
+        const xmlText = await response.text();
+        const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+        let match: RegExpExecArray | null;
 
       while ((match = itemRegex.exec(xmlText)) !== null) {
         jobsDiscovered++;
@@ -114,25 +111,18 @@ export class WeWorkRemotelyProvider implements JobSourceProvider {
           hasFullText: rawDesc.length > 50,
         });
       }
-
-      return {
-        providerKey: this.providerKey,
-        jobs,
-        success: true,
-        durationMs: Date.now() - startTime,
-        jobsDiscovered,
-        jobsRejected,
-      };
     } catch (err) {
-      return {
-        providerKey: this.providerKey,
-        jobs: [],
-        success: false,
-        error: (err as Error).message,
-        durationMs: Date.now() - startTime,
-        jobsDiscovered: 0,
-        jobsRejected: 0,
-      };
+      console.warn(`[WeWorkRemotely Provider Warning] Feed "${feedUrl}" failed:`, (err as Error).message);
     }
   }
+
+  return {
+    providerKey: this.providerKey,
+    jobs,
+    success: true,
+    durationMs: Date.now() - startTime,
+    jobsDiscovered,
+    jobsRejected,
+  };
+}
 }

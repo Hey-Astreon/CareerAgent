@@ -59,8 +59,16 @@ export class SimplifyProvider implements JobSourceProvider {
             const companyRaw = item.company_name || "Simplify Tech";
             const discoveryUrl = item.url || item.company_url || "https://simplify.jobs";
 
-            const rawLocs = item.locations && item.locations.length > 0 ? item.locations.join(", ") : "Worldwide";
-            const location = rawLocs.toLowerCase().includes("remote") ? rawLocs : `Remote (${rawLocs})`;
+            const rawLocs = item.locations && item.locations.length > 0 ? item.locations.join(", ") : "";
+            const isExplicitlyRemote = rawLocs.toLowerCase().includes("remote") || rawLocs.toLowerCase().includes("anywhere") || rawLocs.toLowerCase().includes("worldwide") || titleRaw.toLowerCase().includes("remote");
+
+            // Strictly exclude non-remote Simplify jobs (e.g. San Francisco, CA or New York, NY on-site)
+            if (!isExplicitlyRemote) {
+              rejectedCount++;
+              continue;
+            }
+
+            const location = rawLocs ? (rawLocs.toLowerCase().includes("remote") ? rawLocs : `Remote (${rawLocs})`) : "Remote (Worldwide)";
 
             if (!isStrictlyRemoteDeveloperRole(titleRaw, location, `${titleRaw} at ${companyRaw}`)) {
               rejectedCount++;
