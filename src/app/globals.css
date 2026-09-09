@@ -213,6 +213,25 @@ code, pre, .font-mono { font-family: var(--font-mono), monospace; }
     padding: 0 !important;
     width: 100% !important;
     max-width: none !important;
+    display: block !important;
+  }
+
+  .ats-print-container,
+  .ats-print-wrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    max-height: none !important;
+    display: block !important;
+    transform: none !important;
+  }
+
+  .ats-print-wrapper > div,
+  .ats-print-container > div {
+    transform: none !important;
   }
 
   .ats-a4-sheet {

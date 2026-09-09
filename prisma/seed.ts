@@ -1,12 +1,7 @@
-import { PrismaClient, PlatformSource } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import path from "path";
+import { PlatformSource } from "@prisma/client";
+import { db } from "../src/lib/db";
 import { runAllProviders } from "../src/lib/providers/registry";
 import { generateUrlHash } from "../src/lib/providers/dedup";
-
-const dbPath = path.join(process.cwd(), "prisma", "dev.db");
-const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
-const db = new PrismaClient({ adapter });
 
 async function main() {
   console.log("[Seed] Syncing candidate profiles and ingesting real live remote postings...");

@@ -9,6 +9,7 @@ const titles: Record<string, string> = {
   "/match": "Match Studio",
   "/resume-builder": "Complete Application Kit",
   "/drafter": "Complete Application Kit",
+  "/resume-maker": "Tier-1 ATS Resume Maker",
 };
 
 export function Header() {

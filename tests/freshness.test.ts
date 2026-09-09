@@ -15,7 +15,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -79,7 +79,7 @@ beforeAll(async () => {
   const devDbPath = path.join(process.cwd(), "prisma", "dev.db");
   fs.copyFileSync(devDbPath, dbPath);
 
-  const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
+  const adapter = new PrismaLibSql({ url: `file:${dbPath.replace(/\\/g, "/")}` });
   testDb = new PrismaClient({ adapter });
 });
 

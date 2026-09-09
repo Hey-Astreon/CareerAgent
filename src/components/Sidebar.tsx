@@ -3,12 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Globe2, Target, FileCheck, ChevronRight } from "lucide-react";
+import { Globe2, Target, FileCheck, Sparkles, ChevronRight } from "lucide-react";
 
 const navItems = [
   { name: "Discovery", href: "/", icon: Globe2, badge: "LIVE" },
   { name: "Match Studio", href: "/match", icon: Target },
   { name: "Complete Application Kit", href: "/resume-builder", icon: FileCheck },
+  { name: "ATS Resume Maker", href: "/resume-maker", icon: Sparkles, badge: "TIER-1" },
 ];
 
 export function Sidebar() {

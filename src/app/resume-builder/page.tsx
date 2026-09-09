@@ -29,7 +29,7 @@ import {
   OptimizedResume,
   getMasterResumeBaseline,
   injectKeywordIntoResume,
-} from "@/lib/ai/resumeOptimizer";
+} from "@/lib/resumeBaseline";
 
 interface JobItem {
   id: string;
