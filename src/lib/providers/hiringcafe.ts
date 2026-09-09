@@ -22,6 +22,10 @@ export class HiringCafeProvider implements JobSourceProvider {
     const jobs: NormalizedJob[] = [];
     let discoveredCount = 0;
     let rejectedCount = 0;
+    let missingTitle = 0;
+    let invalidUrl = 0;
+    let roleGateRejected = 0;
+    let requestError: string | undefined;
 
     const urls = [
       "https://hiring.cafe/?search=software+engineer&workplace_type=remote",
@@ -46,11 +50,26 @@ export class HiringCafeProvider implements JobSourceProvider {
             const companyName = $(element).find("[class*='company']").first().text().trim() || "Hiring Cafe Partner";
             const link = $(element).attr("href") || $(element).find("a").attr("href");
 
-            if (title && title.length < 80 && link && link.includes("/job/")) {
+            if (!title) {
+              missingTitle++;
+              return;
+            }
+            if (title.length >= 80) {
+              roleGateRejected++;
+              rejectedCount++;
+              return;
+            }
+            if (!link || !link.includes("/job/")) {
+              invalidUrl++;
+              return;
+            }
+
+            {
               const fullUrl = link.startsWith("http") ? link : `https://hiring.cafe${link}`;
               const location = "Remote (Worldwide)";
 
               if (!isStrictlyRemoteDeveloperRole(title, location, `${title} at ${companyName}`)) {
+                roleGateRejected++;
                 rejectedCount++;
                 return;
               }
@@ -90,17 +109,27 @@ export class HiringCafeProvider implements JobSourceProvider {
           });
         }
       } catch (err) {
-        console.warn(`[Hiring Cafe Provider Warning] URL "${targetUrl}" failed:`, (err as Error).message);
+        requestError = (err as Error).message;
+        console.warn(`[Hiring Cafe Provider Warning] URL "${targetUrl}" failed:`, requestError);
       }
     }
 
     return {
       providerKey: this.providerKey,
       jobs,
-      success: true,
+      success: !requestError,
+      error: requestError,
       durationMs: Date.now() - startTime,
       jobsDiscovered: discoveredCount,
       jobsRejected: rejectedCount,
+      diagnostics: {
+        rawCandidates: discoveredCount,
+        missingTitle,
+        invalidUrl,
+        roleGateRejected,
+        accepted: jobs.length,
+        instrumented: true,
+      },
     };
   }
 }

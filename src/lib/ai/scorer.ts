@@ -1,8 +1,15 @@
 import { queryMultiProviderLLM } from "./router";
+import { EXCESSIVE_EXPERIENCE_REGEXES } from "../providers/normalize";
 
 export interface CandidateContext {
   fullName: string;
   title: string;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  portfolioUrl?: string | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
   masterProjects: Array<{
     title: string;
     techStack: string;
@@ -189,6 +196,14 @@ export function evaluateHardEligibility(
     const lowerLoc = jobLocation.toLowerCase();
     if (lowerLoc.includes("on-site") || lowerLoc.includes("onsite") || lowerLoc.includes("in-office")) {
       return { eligible: false, reason: "Ineligible: Location mismatch (On-Site role)." };
+    }
+  }
+
+  // 5. Excessive Experience Requirement Check (3+ years / 4+ years / senior mentorship)
+  if (jobDescription) {
+    const lowerDesc = jobDescription.toLowerCase();
+    if (EXCESSIVE_EXPERIENCE_REGEXES.some((rx) => rx.test(lowerDesc))) {
+      return { eligible: false, reason: "Ineligible: Experience mismatch (Requires 3+ years / mid-to-senior experience)." };
     }
   }
 

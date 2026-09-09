@@ -91,6 +91,28 @@ model ProviderSyncState {
   @@map("provider_sync_states")
 }
 
+model ProviderEndpointRun {
+  id           String   @id @default(uuid())
+  scrapeRunId  String
+  providerKey  String
+  endpointKey  String
+  endpointUrl  String
+  observedAt   DateTime @default(now())
+
+  success      Boolean
+  latencyMs    Int
+  attemptCount Int
+  statusCode   Int?
+  retryAfterMs Int?
+  errorMessage String?
+
+  @@index([scrapeRunId])
+  @@index([providerKey, observedAt])
+  @@index([providerKey, endpointKey, observedAt])
+  @@index([observedAt])
+  @@map("provider_endpoint_runs")
+}
+
 model Profile {
   id               String              @id @default(uuid())
   slug             String              @unique
@@ -177,6 +199,7 @@ model JobPosting {
   @@index([category])
   @@index([lastSeenAt])
   @@index([isExpired])
+  @@index([isExpired, postedAt(sort: Desc), createdAt(sort: Desc)], map: "job_postings_isExpired_postedAt_createdAt_idx")
   @@map("job_postings")
 }
 

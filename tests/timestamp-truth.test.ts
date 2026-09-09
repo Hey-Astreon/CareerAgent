@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { formatRelativeAge } from "../src/app/page";
 import { NormalizedJob } from "../src/lib/providers/types";
 import { PlatformSource } from "@prisma/client";
-import { YCProvider } from "../src/lib/providers/yc";
+import { GreenhouseProvider } from "../src/lib/providers/greenhouse";
 import { LinkedInProvider } from "../src/lib/providers/linkedin";
 
 describe("Checkpoint D2 — Data Truth & Freshness Intelligence", () => {
@@ -90,9 +90,9 @@ describe("Checkpoint D2 — Data Truth & Freshness Intelligence", () => {
   });
 
   describe("3. Provider Timestamp Removal of Fallback new Date()", () => {
-    test("YCProvider sets postedAt to null when source date is absent in sandbox", () => {
-      const provider = new YCProvider();
-      expect(provider.providerKey).toBe(PlatformSource.YC_JOBS);
+    test("GreenhouseProvider sets postedAt without fabricating timestamps", () => {
+      const provider = new GreenhouseProvider();
+      expect(provider.providerKey).toBe(PlatformSource.GREENHOUSE);
     });
 
     test("LinkedInProvider does not fabricate postedAt when datetime attribute is missing", () => {

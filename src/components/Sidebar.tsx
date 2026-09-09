@@ -1,65 +1,68 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import {
-  Globe,
-  Target,
-  FileText,
-} from "lucide-react";
+import { Globe2, Target, FileCheck, ChevronRight } from "lucide-react";
 
 const navItems = [
-  { name: "Live Discovery Feed", href: "/", icon: Globe, badge: "Live" },
-  { name: "Fit & Match Studio", href: "/match", icon: Target },
-  { name: "Application Kit Drafter", href: "/drafter", icon: FileText },
+  { name: "Discovery", href: "/", icon: Globe2, badge: "LIVE" },
+  { name: "Match Studio", href: "/match", icon: Target },
+  { name: "Complete Application Kit", href: "/resume-builder", icon: FileCheck },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-
   return (
-    <aside className="w-56 bg-[#09090b] border-r border-white/[0.08] p-3 flex flex-col justify-between hidden md:flex shrink-0 min-h-[calc(100vh-3.5rem)]">
-      <div className="space-y-4">
-        <div className="px-2 text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-semibold">
-          Platform Workspace
+    <aside className="ce-rail">
+      <Link
+        href="/"
+        className="group block transition-all"
+        aria-label="RCMS - Remote Career Management System"
+      >
+        <div className="flex h-[54px] w-full items-center justify-center rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 shadow-xs transition-all duration-200 group-hover:border-[var(--blue)] group-hover:shadow-sm">
+          <Image
+            src="/rcms-logo.png"
+            alt="RCMS - Remote Career Management System"
+            width={180}
+            height={50}
+            className="h-full w-auto max-w-full object-contain"
+            priority
+          />
         </div>
-
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
-                  isActive
-                    ? "bg-zinc-900 text-white font-semibold border border-white/10 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 font-medium"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Icon
-                    className={`w-4 h-4 ${
-                      isActive ? "text-white" : "text-zinc-400"
-                    }`}
-                  />
-                  <span>{item.name}</span>
-                </div>
-                {item.badge && (
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 font-mono text-[10px] border border-emerald-500/20">
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+      </Link>
+      <div className="ce-nav-label !mt-4">Candidate workspace</div>
+      <nav className="ce-nav" aria-label="RCMS navigation">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`ce-nav-link${active ? " active" : ""}`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{item.name}</span>
+              {item.badge ? (
+                <em className="ce-nav-badge">{item.badge}</em>
+              ) : (
+                <ChevronRight className="w-3 h-3 opacity-40" />
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="ce-rail-context">
+        <span>Discovery scope</span>
+        <strong>Global active feed</strong>
+        <p>Remote roles · all dates · optional experience filters</p>
+        <div className="ce-progress">
+          <i />
+        </div>
       </div>
-
-      <div className="px-3 py-2 text-[11px] font-mono text-zinc-500 border-t border-white/[0.06] flex items-center justify-between">
-        <span>CareerAgent v1.0</span>
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      <div className="ce-rail-footer">
+        <i className="ce-dot" />RCMS ONLINE
       </div>
     </aside>
   );

@@ -2,61 +2,41 @@ import { db } from "@/lib/db";
 import { SyncStatus, PlatformSource } from "@prisma/client";
 import { JobSourceProvider, NormalizedJob, ProviderResult } from "./types";
 import { GreenhouseProvider } from "./greenhouse";
-import { LeverProvider } from "./lever";
 import { AshbyProvider } from "./ashby";
 import { HimalayasProvider } from "./himalayas";
-import { RemotiveProvider } from "./remotive";
 import { LinkedInProvider } from "./linkedin";
-import { YCProvider } from "./yc";
-import { WellfoundProvider } from "./wellfound";
-import { WorkableProvider } from "./workable";
-import { SmartRecruitersProvider } from "./smartrecruiters";
-import { RecruiteeProvider } from "./recruitee";
 import { HackerNewsProvider } from "./hackernews";
 import { WeWorkRemotelyProvider } from "./weworkremotely";
 import { JobicyProvider } from "./jobicy";
-import { ArbeitnowProvider } from "./arbeitnow";
 import { RemoteOKProvider } from "./remoteok";
 import { Micro1Provider } from "./micro1";
-import { NaukriProvider } from "./naukri";
-import { HiringCafeProvider } from "./hiringcafe";
 import { SimplifyProvider } from "./simplify";
-import { TrueUpProvider } from "./trueup";
 import { ArcDevProvider } from "./arcdev";
 import { BuiltInProvider } from "./builtin";
-import { TheHubProvider } from "./thehub";
 import { generateUrlHash, computeDeduplicationKey, isDirectAtsUrl } from "./dedup";
-import { parseRemoteScope } from "./normalize";
+import { parseRemoteScope, isOlderThanMaxPostingAge, MAX_POSTING_AGE_DAYS } from "./normalize";
 import { isValidHttpUrl } from "@/lib/urlValidator";
 import { logProviderDiagnostics } from "./diagnostic";
-
 
 export const ACTIVE_PROVIDERS: JobSourceProvider[] = [
   new GreenhouseProvider(),
   new AshbyProvider(),
-  new LeverProvider(),
-  new WorkableProvider(),
-  new SmartRecruitersProvider(),
-  new RecruiteeProvider(),
-  new HimalayasProvider(),
-  new RemotiveProvider(),
-  new ArbeitnowProvider(),
-  new RemoteOKProvider(),
-  new JobicyProvider(),
   new SimplifyProvider(),
   new ArcDevProvider(),
   new BuiltInProvider(),
+  new HimalayasProvider(),
   new HackerNewsProvider(),
   new LinkedInProvider(),
-  new Micro1Provider(),
   new WeWorkRemotelyProvider(),
-  new HiringCafeProvider(),
-  new TrueUpProvider(),
-  new TheHubProvider(),
-  new YCProvider(),
-  new WellfoundProvider(),
-  new NaukriProvider(),
+  new JobicyProvider(),
+  new Micro1Provider(),
+  new RemoteOKProvider(),
 ];
+
+export interface ProviderRunOptions {
+  /** Production discovery persists sync state and evaluates freshness. Diagnostics must opt out. */
+  persistSyncState?: boolean;
+}
 
 /**
  * Executes a single provider with hard timeout via Promise.race and AbortSignal.
@@ -101,13 +81,15 @@ async function executeProviderWithTimeout(provider: JobSourceProvider): Promise<
  * Runs all configured providers concurrently via Promise.allSettled() with failure isolation.
  */
 export async function runAllProviders(
-  providers: JobSourceProvider[] = ACTIVE_PROVIDERS
+  providers: JobSourceProvider[] = ACTIVE_PROVIDERS,
+  options: ProviderRunOptions = {}
 ): Promise<{
   providerResults: ProviderResult[];
   allJobs: NormalizedJob[];
   totalDiscovered: number;
   totalRejected: number;
 }> {
+  const persistSyncState = options.persistSyncState ?? true;
   const settled = await Promise.allSettled(
     providers.map((p) => executeProviderWithTimeout(p))
   );
@@ -132,31 +114,33 @@ export async function runAllProviders(
       totalDiscovered += result.jobsDiscovered;
       totalRejected += result.jobsRejected;
 
-      // Update ProviderSyncState in DB
-      await db.providerSyncState.upsert({
-        where: { providerKey: provider.providerKey },
-        update: {
-          status: result.success ? SyncStatus.HEALTHY : SyncStatus.DEGRADED,
-          lastSyncAttemptAt: new Date(),
-          ...(result.success ? { lastSuccessfulSyncAt: new Date(), consecutiveFailures: 0 } : { lastFailedSyncAt: new Date(), lastError: result.error }),
-          totalJobsSeen: { increment: result.jobsDiscovered },
-        },
-        create: {
-          providerKey: provider.providerKey,
-          status: result.success ? SyncStatus.HEALTHY : SyncStatus.DEGRADED,
-          lastSyncAttemptAt: new Date(),
-          lastSuccessfulSyncAt: result.success ? new Date() : null,
-          lastFailedSyncAt: result.success ? null : new Date(),
-          lastError: result.error,
-          totalJobsSeen: result.jobsDiscovered,
-        },
-      }).catch((err) => console.warn(`[SyncState Warning] Failed to update ${provider.providerKey}:`, err.message));
+      if (persistSyncState) {
+        // Update ProviderSyncState in DB only for production discovery runs.
+        await db.providerSyncState.upsert({
+          where: { providerKey: provider.providerKey },
+          update: {
+            status: result.success ? SyncStatus.HEALTHY : SyncStatus.DEGRADED,
+            lastSyncAttemptAt: new Date(),
+            ...(result.success ? { lastSuccessfulSyncAt: new Date(), consecutiveFailures: 0 } : { lastFailedSyncAt: new Date(), lastError: result.error }),
+            totalJobsSeen: { increment: result.jobsDiscovered },
+          },
+          create: {
+            providerKey: provider.providerKey,
+            status: result.success ? SyncStatus.HEALTHY : SyncStatus.DEGRADED,
+            lastSyncAttemptAt: new Date(),
+            lastSuccessfulSyncAt: result.success ? new Date() : null,
+            lastFailedSyncAt: result.success ? null : new Date(),
+            lastError: result.error,
+            totalJobsSeen: result.jobsDiscovered,
+          },
+        }).catch((err) => console.warn(`[SyncState Warning] Failed to update ${provider.providerKey}:`, err.message));
 
-      // FRESHNESS ENGINE: Evaluates stale occurrences ONLY after a successful provider sync
-      if (result.success) {
-        await evaluateJobFreshness(provider.providerKey).catch((err) =>
-          console.warn(`[Freshness Warning] Failed to evaluate freshness for ${provider.providerKey}:`, err.message)
-        );
+        // Freshness pruning is also production-only; a diagnostics run must never expire live roles.
+        if (result.success) {
+          await evaluateJobFreshness(provider.providerKey).catch((err) =>
+            console.warn(`[Freshness Warning] Failed to evaluate freshness for ${provider.providerKey}:`, err.message)
+          );
+        }
       }
     } else {
       const errorMsg = res.reason?.message || "Execution error";
@@ -252,6 +236,18 @@ export async function evaluateJobFreshness(providerKey: string): Promise<{
       },
     });
 
+    // 5. Hard 21-day ceiling: Expire any job posted more than 21 days (3 weeks) ago
+    const twentyOneDaysAgo = new Date(Date.now() - MAX_POSTING_AGE_DAYS * 86400000);
+    await tx.jobPosting.updateMany({
+      where: {
+        postedAt: { lt: twentyOneDaysAgo },
+        isExpired: false,
+      },
+      data: {
+        isExpired: true,
+      },
+    });
+
     return { prunedOccurrences: deleteResult.count, expiredOpportunities: expiredCount };
   });
 }
@@ -280,6 +276,11 @@ export async function ingestNormalizedJobs(jobs: NormalizedJob[]): Promise<{ ins
   }
 
   for (const job of jobs) {
+    // Strict 21-day ceiling: Discard jobs posted more than 21 days (3 weeks) ago
+    if (job.postedAt && isOlderThanMaxPostingAge(job.postedAt, MAX_POSTING_AGE_DAYS)) {
+      continue;
+    }
+
     const validAppUrl = job.canonicalAppUrl && isValidHttpUrl(job.canonicalAppUrl) ? job.canonicalAppUrl : null;
     const validDiscoveryUrl = job.discoveryUrl && isValidHttpUrl(job.discoveryUrl) ? job.discoveryUrl : null;
     const primaryUrl = validAppUrl || validDiscoveryUrl;

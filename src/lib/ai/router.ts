@@ -39,7 +39,7 @@ export async function queryMultiProviderLLM(
       const res = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
-          model: "llama-3.3-70b-versatile",
+          model: "openai/gpt-oss-120b",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -58,17 +58,17 @@ export async function queryMultiProviderLLM(
       const text = res.data?.choices?.[0]?.message?.content;
       if (text) return { text: cleanJsonResponse(text), provider: "groq" };
     } catch (err) {
-      console.warn("[LLM Router Warning] Groq failed, falling over to NVIDIA NIM:", (err as Error).message);
+      console.warn("[LLM Router Warning] Groq failed, falling over to NVIDIA NIM / Gemini:", (err as Error).message);
     }
   }
 
-  // 2. Try NVIDIA NIM (Llama 3.1 70B Instruct)
+  // 2. Try NVIDIA NIM (Llama 3.3 / 3.1)
   if (nvidiaKey && !nvidiaKey.includes("YOUR_")) {
     try {
       const res = await axios.post(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         {
-          model: "meta/llama-3.1-70b-instruct",
+          model: "meta/llama-3.3-70b-instruct",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -86,7 +86,7 @@ export async function queryMultiProviderLLM(
       const text = res.data?.choices?.[0]?.message?.content;
       if (text) return { text: cleanJsonResponse(text), provider: "nvidia" };
     } catch (err) {
-      console.warn("[LLM Router Warning] NVIDIA NIM failed, falling over to Cerebras:", (err as Error).message);
+      console.warn("[LLM Router Warning] NVIDIA NIM failed, falling over to Cerebras / Gemini:", (err as Error).message);
     }
   }
 
@@ -101,6 +101,7 @@ export async function queryMultiProviderLLM(
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
+          response_format: responseJson ? { type: "json_object" } : undefined,
           temperature: 0.2,
         },
         {
@@ -123,7 +124,7 @@ export async function queryMultiProviderLLM(
     try {
       const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
       const res = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
         {
           contents: [{ parts: [{ text: fullPrompt }] }],
           generationConfig: responseJson ? { responseMimeType: "application/json" } : undefined,

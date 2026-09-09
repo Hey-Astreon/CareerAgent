@@ -23,10 +23,14 @@
 # sqlite database
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # misc
 .DS_Store
 *.pem
+ui-desktop.png
+ui-mobile.png
 
 # debug
 npm-debug.log*

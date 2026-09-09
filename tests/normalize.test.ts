@@ -20,6 +20,8 @@ import {
   determineExperienceLevel,
   determineJobType,
   cleanCompanySlug,
+  isOlderThanMaxPostingAge,
+  MAX_POSTING_AGE_DAYS,
 } from "@/lib/providers/normalize";
 
 // ─── isStrictlyRemoteDeveloperRole ───────────────────────────────────────────
@@ -179,6 +181,16 @@ describe("isStrictlyRemoteDeveloperRole – seniority exclusion", () => {
     expect(isStrictlyRemoteDeveloperRole("Software Engineer", "Remote", desc)).toBe(false);
   });
 
+  it("rejects role when description contains 3+ years requirement (like Coinbase Product Security Engineer)", () => {
+    const desc = "3+ years of experience in application security, penetration testing, or offensive security.";
+    expect(isStrictlyRemoteDeveloperRole("Product Security Engineer", "Remote", desc)).toBe(false);
+  });
+
+  it("rejects role when description requires mentoring junior engineers", () => {
+    const desc = "Mentor junior security engineers on integrating AI into offensive security workflows.";
+    expect(isStrictlyRemoteDeveloperRole("Product Security Engineer", "Remote", desc)).toBe(false);
+  });
+
   it("accepts plain Software Engineer with 1–3 years requirement in description", () => {
     const desc = "1-3 years of experience with React and Node.js. Entry-level friendly team.";
     expect(isStrictlyRemoteDeveloperRole("Software Engineer", "Remote", desc)).toBe(true);
@@ -203,6 +215,32 @@ describe("isStrictlyRemoteDeveloperRole – 0-3 year target cases", () => {
 
   it("accepts junior backend developer", () => {
     expect(isStrictlyRemoteDeveloperRole("Junior Backend Developer", "Remote", "")).toBe(true);
+  });
+});
+
+describe("isStrictlyRemoteDeveloperRole – 21-day posting age ceiling", () => {
+  it("accepts jobs posted within 21 days (e.g. 5 days ago)", () => {
+    const fiveDaysAgo = new Date(Date.now() - 5 * 86400 * 1000);
+    expect(isOlderThanMaxPostingAge(fiveDaysAgo, 21)).toBe(false);
+    expect(isStrictlyRemoteDeveloperRole("Software Engineer", "Remote", "", fiveDaysAgo)).toBe(true);
+  });
+
+  it("accepts jobs posted exactly 21 days ago", () => {
+    const twentyOneDaysAgo = new Date(Date.now() - 20.95 * 86400 * 1000);
+    expect(isOlderThanMaxPostingAge(twentyOneDaysAgo, 21)).toBe(false);
+    expect(isStrictlyRemoteDeveloperRole("Software Engineer", "Remote", "", twentyOneDaysAgo)).toBe(true);
+  });
+
+  it("rejects and discards jobs posted more than 21 days ago (e.g. 22 days ago)", () => {
+    const twentyTwoDaysAgo = new Date(Date.now() - 22 * 86400 * 1000);
+    expect(isOlderThanMaxPostingAge(twentyTwoDaysAgo, 21)).toBe(true);
+    expect(isStrictlyRemoteDeveloperRole("Software Engineer", "Remote", "", twentyTwoDaysAgo)).toBe(false);
+  });
+
+  it("rejects jobs posted 60 days ago", () => {
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 86400 * 1000);
+    expect(isOlderThanMaxPostingAge(sixtyDaysAgo, 21)).toBe(true);
+    expect(isStrictlyRemoteDeveloperRole("Software Engineer", "Remote", "", sixtyDaysAgo)).toBe(false);
   });
 });
 

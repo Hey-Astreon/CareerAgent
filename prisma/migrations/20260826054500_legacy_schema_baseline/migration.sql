@@ -1,0 +1,6 @@
+-- Legacy baseline marker.
+--
+-- This SQLite database predates Prisma Migrate. It is recorded as already
+-- applied with `prisma migrate resolve --applied` so the existing schema and
+-- data remain untouched. New databases must be initialized from the legacy
+-- schema before applying incremental migrations from this history.

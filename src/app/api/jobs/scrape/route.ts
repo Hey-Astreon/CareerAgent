@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { runAllProviders, ingestNormalizedJobs } from "@/lib/providers/registry";
-import { parseRemoteScope } from "@/lib/providers/normalize";
+import { parseRemoteScope, MAX_POSTING_AGE_DAYS } from "@/lib/providers/normalize";
+import { buildProviderEndpointRunInserts } from "@/lib/providerEndpointTelemetry";
 
 function interleavePlatforms<T extends { platform: string }>(jobsList: T[]): T[] {
   const groups: Record<string, T[]> = {};
@@ -32,6 +34,7 @@ function interleavePlatforms<T extends { platform: string }>(jobsList: T[]): T[]
 
 export async function POST() {
   try {
+    const scrapeRunId = randomUUID();
     console.log("[Discovery Engine Phase 1] Running provider registry concurrently...");
     
     // Execute all providers with bounded timeouts & failure isolation
@@ -40,9 +43,21 @@ export async function POST() {
     // Dual-ingest into Opportunity/Occurrence and JobPosting
     const { insertedCount, updatedCount } = await ingestNormalizedJobs(allJobs);
 
+    const endpointRunRows = buildProviderEndpointRunInserts(scrapeRunId, providerResults);
+    if (endpointRunRows.length) {
+      await db.providerEndpointRun.createMany({ data: endpointRunRows }).catch((error) => {
+        console.warn("[ProviderEndpointTelemetry] Failed to persist endpoint telemetry:", error.message);
+      });
+    }
+
+    const twentyOneDaysAgo = new Date(Date.now() - MAX_POSTING_AGE_DAYS * 86400000);
     const rawActive = await db.jobPosting.findMany({
       where: {
         isExpired: false,
+        OR: [
+          { postedAt: { gte: twentyOneDaysAgo } },
+          { postedAt: null, createdAt: { gte: twentyOneDaysAgo } },
+        ],
       },
       orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
     });
@@ -59,12 +74,16 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
+      scrapeRunId,
       providerSummary: providerResults.map((p) => ({
         provider: p.providerKey,
         success: p.success,
         durationMs: p.durationMs,
         discovered: p.jobsDiscovered,
         error: p.error,
+        diagnostics: p.diagnostics ?? null,
+        endpointTelemetry: p.endpointTelemetry ?? null,
+        endpointTelemetrySummary: p.endpointTelemetrySummary ?? null,
       })),
       totalDiscovered,
       totalRejected,
@@ -83,9 +102,14 @@ export async function POST() {
 
 export async function GET() {
   try {
+    const twentyOneDaysAgo = new Date(Date.now() - MAX_POSTING_AGE_DAYS * 86400000);
     const rawActive = await db.jobPosting.findMany({
       where: {
         isExpired: false,
+        OR: [
+          { postedAt: { gte: twentyOneDaysAgo } },
+          { postedAt: null, createdAt: { gte: twentyOneDaysAgo } },
+        ],
       },
       orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
     });

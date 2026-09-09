@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { computeCompositeMatchScore } from "@/lib/ai/scorer";
+import { selectRecommendedResumeVariant } from "@/lib/resumeVariantSelector";
 
 export async function POST(req: Request) {
   const startTime = Date.now();
@@ -107,6 +108,15 @@ export async function POST(req: Request) {
       },
     });
 
+    // Determine the recommended resume variant
+    const recommendedVariant = selectRecommendedResumeVariant(
+      profile.slug,
+      job.title,
+      job.rawDescription,
+      job.company,
+      job.platform
+    );
+
     return NextResponse.json({
       success: true,
       matchScore: {
@@ -117,6 +127,7 @@ export async function POST(req: Request) {
         hardSkills: result.hardSkills,
         missingSkills: result.missingSkills,
         reasoning: result.reasoning,
+        recommendedResumeVariant: recommendedVariant,
         version: result.version,
         cached: false,
         aiCallsCount: result.aiCallsCount,

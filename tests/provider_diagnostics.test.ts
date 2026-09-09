@@ -5,8 +5,8 @@ import { runAllProviders } from "../src/lib/providers/registry";
 // The diagnostic logs are emitted to stdout and will be captured in the test output.
 
 describe('Provider diagnostics run', () => {
-  it('executes all providers without throwing', async () => {
-    const result = await runAllProviders();
+  it('executes all providers without changing the live provider state', async () => {
+    const result = await runAllProviders(undefined, { persistSyncState: false });
     expect(result).toBeDefined();
     expect(Array.isArray(result.providerResults)).toBe(true);
   }, 180000); // allow up to 3 minutes for all providers

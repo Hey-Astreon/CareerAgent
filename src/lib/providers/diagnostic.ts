@@ -2,22 +2,14 @@ import { ProviderResult, NormalizedJob } from './types';
 import { isValidHttpUrl } from '@/lib/urlValidator';
 
 /**
- * Helper to log detailed provider diagnostics.
- * It calculates various stages based on the ProviderResult.
- * The function is deliberately side‑effect free except for console output –
- * this keeps the production pipeline unchanged while providing the required
- * visibility for the D3.6 audit.
+ * Emit a structured, provider-scoped pipeline summary.
+ * Providers with exact counters should populate result.diagnostics. For legacy
+ * providers, the fallback deliberately labels the estimates so dashboard users
+ * do not mistake inferred stages for exact rejection counts.
  */
-export function logProviderDiagnostics(
-  providerKey: string,
-  result: ProviderResult
-): void {
-  // ProviderResult already contains counts of discovered and rejected jobs.
-  const rawJobs = result.jobsDiscovered + result.jobsRejected; // total jobs the provider attempted to parse
-  const parsedJobs = result.jobsDiscovered; // jobs that passed provider‑level parsing
-
-  // Now inspect the NormalizedJob objects that made it through the provider.
+export function logProviderDiagnostics(providerKey: string, result: ProviderResult): void {
   const jobs: NormalizedJob[] = result.jobs as NormalizedJob[];
+  const exact = result.diagnostics;
 
   let validUrlJobs = 0;
   let developerJobs = 0;
@@ -28,38 +20,31 @@ export function logProviderDiagnostics(
   const expPattern = /0-?3\s*years|entry|junior/i;
 
   for (const job of jobs) {
-    if (job.canonicalAppUrl && isValidHttpUrl(job.canonicalAppUrl)) {
-      validUrlJobs++;
-    }
-    const title = job.title ?? '';
-    const category = job.category ?? '';
-    const combined = `${title} ${category}`;
-    if (devKeywords.some((re) => re.test(combined))) {
-      developerJobs++;
-    }
-    if (job.isRemote) {
-      remoteJobs++;
-    }
-    if (job.experienceLevel && expPattern.test(job.experienceLevel)) {
-      experienceJobs++;
-    }
+    if (job.canonicalAppUrl && isValidHttpUrl(job.canonicalAppUrl)) validUrlJobs++;
+    const combined = `${job.title ?? ''} ${job.category ?? ''}`;
+    if (devKeywords.some((re) => re.test(combined))) developerJobs++;
+    if (job.isRemote) remoteJobs++;
+    if (job.experienceLevel && expPattern.test(job.experienceLevel)) experienceJobs++;
   }
-
-  const finalAcceptedJobs = jobs.length;
 
   const diagnostics = {
     provider: providerKey,
-    RAW: rawJobs,
-    PARSED: parsedJobs,
+    RAW: exact?.rawCandidates ?? result.jobsDiscovered + result.jobsRejected,
+    PARSED: result.jobsDiscovered,
+    MISSING_TITLE: exact?.missingTitle ?? null,
+    INVALID_URL: exact?.invalidUrl ?? null,
+    ROLE_GATE_REJECTED: exact?.roleGateRejected ?? result.jobsRejected,
     VALID_URL: validUrlJobs,
     DEVELOPER: developerJobs,
     REMOTE: remoteJobs,
     EXPERIENCE_0_3: experienceJobs,
-    FINAL: finalAcceptedJobs,
+    FINAL: exact?.accepted ?? jobs.length,
+    COUNTER_MODE: exact?.instrumented ? 'EXACT' : 'LEGACY_ESTIMATE',
     STATUS: result.success ? 'SUCCESS' : 'FAIL',
     ERROR: result.error ?? null,
+    ENDPOINT_TELEMETRY: result.endpointTelemetry ?? null,
+    ENDPOINT_TELEMETRY_SUMMARY: result.endpointTelemetrySummary ?? null,
   };
 
-  // Emit a structured JSON line – this can be captured by the report script later.
   console.log('[ProviderDiagnostics]', JSON.stringify(diagnostics));
 }

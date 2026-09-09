@@ -3,9 +3,18 @@ import { db } from "@/lib/db";
 
 export async function GET() {
   try {
-    const syncStates = await db.providerSyncState.findMany({
-      orderBy: { providerKey: "asc" },
-    });
+    const [syncStates, providerJobs] = await Promise.all([
+      db.providerSyncState.findMany({ orderBy: { providerKey: "asc" } }),
+      db.jobPosting.groupBy({ by: ["platform", "isExpired"], _count: { _all: true } }),
+    ]);
+
+    const jobCounts = new Map<string, { activeJobs: number; staleJobs: number }>();
+    for (const row of providerJobs) {
+      const current = jobCounts.get(row.platform) ?? { activeJobs: 0, staleJobs: 0 };
+      if (row.isExpired) current.staleJobs += row._count._all;
+      else current.activeJobs += row._count._all;
+      jobCounts.set(row.platform, current);
+    }
 
     const formattedStates = syncStates.map((state) => ({
       provider: state.providerKey,
@@ -16,6 +25,8 @@ export async function GET() {
       consecutiveFailures: state.consecutiveFailures,
       lastError: state.lastError,
       totalJobsSeen: state.totalJobsSeen,
+      activeJobs: jobCounts.get(state.providerKey)?.activeJobs ?? 0,
+      staleJobs: jobCounts.get(state.providerKey)?.staleJobs ?? 0,
     }));
 
     return NextResponse.json({

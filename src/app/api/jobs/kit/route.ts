@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateTailoredKit } from "@/lib/ai/drafter";
 import { validatePDFExtractability } from "@/lib/ai/ats_validator";
+import { selectRecommendedResumeVariant } from "@/lib/resumeVariantSelector";
 
 /**
  * Validates and sanitizes a file path to prevent path traversal attacks.
@@ -71,14 +72,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // Path Safety & Sanitization
-    const safeCvPath = sanitizeFilePath(profile.masterResumePath);
+    // Determine the optimal resume variant for this candidate and target role
+    const recommendedVariant = selectRecommendedResumeVariant(
+      profile.slug,
+      job.title,
+      job.rawDescription,
+      job.company,
+      job.platform
+    );
 
-    // Run Drafter-Reviewer Agent Loop
+    const safeCvPath = sanitizeFilePath(recommendedVariant.pdfPath || profile.masterResumePath);
+
+    // Run Drafter Agent with full candidate context
     const kit = await generateTailoredKit(
       {
         fullName: profile.fullName,
         title: profile.title,
+        email: profile.email,
+        phone: profile.phone,
+        location: profile.location,
+        portfolioUrl: profile.portfolioUrl,
+        githubUrl: profile.githubUrl,
+        linkedinUrl: profile.linkedinUrl,
         masterProjects: profile.projects.map((p) => ({
           title: p.title,
           techStack: p.techStack,
@@ -105,6 +120,10 @@ export async function POST(req: Request) {
         tailoredSummary: kit.tailoredSummary,
         tailoredProjects: kit.tailoredProjects,
         coverLetter: safeCoverLetter,
+        recruiterMessage: sanitizeText(kit.recruiterMessage),
+        coldEmail: sanitizeText(kit.coldEmail),
+        followUpDraft: sanitizeText(kit.followUpDraft),
+        recommendedResumeVariant: recommendedVariant,
         atsReviewerScore: kit.atsReviewerScore,
         reviewerFeedback: kit.reviewerFeedback,
         atsExtractabilityScore: atsCheck.extractabilityScore,

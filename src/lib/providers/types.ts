@@ -45,6 +45,38 @@ export interface NormalizedJob {
   metadata?: Record<string, unknown>;
 }
 
+export interface ProviderStageDiagnostics {
+  /** Number of source records/elements examined before normalization. */
+  rawCandidates: number;
+  missingTitle: number;
+  invalidUrl: number;
+  roleGateRejected: number;
+  accepted: number;
+  /** True when the provider supplied exact stage counters rather than legacy estimates. */
+  instrumented: boolean;
+}
+
+/** Per-endpoint timing and outcome captured during a single provider run. */
+export interface ProviderEndpointTelemetry {
+  endpointKey: string;
+  endpoint: string;
+  latencyMs: number;
+  attempts: number;
+  success: boolean;
+  statusCode?: number;
+  retryAfterMs?: number;
+  error?: string;
+}
+
+/** Aggregate endpoint reliability for one provider run; derived only from that run's endpoint telemetry. */
+export interface ProviderEndpointTelemetrySummary {
+  totalEndpoints: number;
+  successfulEndpoints: number;
+  failedEndpoints: number;
+  failureRatePercent: number;
+  averageLatencyMs: number;
+}
+
 export interface ProviderResult {
   providerKey: PlatformSource;
   jobs: NormalizedJob[];
@@ -53,6 +85,9 @@ export interface ProviderResult {
   durationMs: number;
   jobsDiscovered: number;
   jobsRejected: number;
+  diagnostics?: ProviderStageDiagnostics;
+  endpointTelemetry?: ProviderEndpointTelemetry[];
+  endpointTelemetrySummary?: ProviderEndpointTelemetrySummary;
 }
 
 export interface JobSourceProvider {

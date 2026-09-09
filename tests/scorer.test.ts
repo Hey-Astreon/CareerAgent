@@ -129,6 +129,41 @@ describe("evaluateHardEligibility", () => {
     expect(res.eligible).toBe(false);
     expect(res.reason).toContain("Missing valid direct application URL");
   });
+
+  it("returns eligible=false when job description requires 3+ years of experience", () => {
+    const res = evaluateHardEligibility(
+      mockCandidate,
+      "Product Security Engineer",
+      "Required Skills and Experience: 3+ years of experience in application security, penetration testing.",
+      "Remote",
+      "https://example.com/apply"
+    );
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toContain("Experience mismatch");
+  });
+
+  it("returns eligible=false when job description mentions mentoring junior engineers", () => {
+    const res = evaluateHardEligibility(
+      mockCandidate,
+      "Security Engineer",
+      "Mentor junior security engineers on integrating AI into offensive security workflows.",
+      "Remote",
+      "https://example.com/apply"
+    );
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toContain("Experience mismatch");
+  });
+
+  it("returns eligible=true for 1-3 years entry level role", () => {
+    const res = evaluateHardEligibility(
+      mockCandidate,
+      "Software Engineer",
+      "1-3 years of experience with React and Python. Entry-level friendly.",
+      "Remote",
+      "https://example.com/apply"
+    );
+    expect(res.eligible).toBe(true);
+  });
 });
 
 // ─── calculateDeterministicSignals ──────────────────────────────────────────

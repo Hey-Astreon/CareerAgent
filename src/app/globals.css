@@ -1,65 +1,231 @@
 @import "tailwindcss";
 
-@layer base {
-  body {
-    background-color: #09090b;
-    color: #f4f4f5;
-    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
-  }
-
-  code, pre, .font-mono {
-    font-family: var(--font-mono), monospace;
-  }
+:root {
+  --canvas: #f7f9fc;
+  --surface: #ffffff;
+  --surface-muted: #f1f5fa;
+  --ink: #142033;
+  --ink-soft: #35435a;
+  --muted: #728096;
+  --line: #e2e8f0;
+  --line-strong: #d3dce8;
+  --blue: #1d5fd1;
+  --blue-soft: #eaf1ff;
+  --green: #13875c;
+  --green-soft: #e9f8f1;
+  --red: #bd3b3b;
+  --red-soft: #fff0f0;
+  --amber: #a96500;
+  --amber-soft: #fff6e5;
+  --shadow: 0 18px 45px rgba(26, 43, 70, 0.06);
 }
 
-/* Custom Minimalist Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+* { box-sizing: border-box; }
+html { background: var(--canvas); }
+body { min-width: 320px; margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-inter), Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid rgba(29,95,209,.45); outline-offset: 3px; }
+code, pre, .font-mono { font-family: var(--font-mono), monospace; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--canvas); }
+::-webkit-scrollbar-thumb { background: #c4cfdd; border: 2px solid var(--canvas); border-radius: 20px; }
+
+.ce-shell { min-height: 100vh; display: flex; background: var(--canvas); }
+.ce-rail { position: fixed; inset: 0 auto 0 0; z-index: 20; width: 242px; display: flex; flex-direction: column; padding: 27px 17px 18px; border-right: 1px solid var(--line); background: var(--surface); }
+.ce-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; color: var(--ink); text-decoration: none; }
+.ce-brand-mark { width: 33px; height: 33px; display: grid; place-items: center; border-radius: 7px; background: var(--ink); color: white; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+.ce-brand-copy strong { display: block; font-size: 14px; letter-spacing: -.035em; }
+.ce-brand-copy span { display: block; margin-top: 3px; color: var(--muted); font: 700 8px var(--font-mono), monospace; letter-spacing: .14em; text-transform: uppercase; }
+.ce-nav-label { margin: 18px 9px 8px; color: var(--muted); font: 700 8px var(--font-mono), monospace; letter-spacing: .14em; text-transform: uppercase; }
+.ce-nav { display: grid; gap: 3px; }
+.ce-nav-link { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 10px; min-height: 38px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px; color: #5c6a7f; font-size: 12px; font-weight: 600; text-decoration: none; transition: color .16s ease, background .16s ease, border-color .16s ease; }
+.ce-nav-link:hover { color: var(--blue); background: var(--blue-soft); }
+.ce-nav-link.active { color: var(--blue); border-color: #d8e5ff; background: var(--blue-soft); }
+.ce-nav-link.active svg { stroke-width: 2.4; }
+.ce-nav-badge { padding: 3px 5px; border-radius: 4px; background: var(--green-soft); color: var(--green); font: 700 7px var(--font-mono), monospace; letter-spacing: .05em; }
+.ce-rail-context { margin-top: auto; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted); }
+.ce-rail-context span { display: block; color: var(--muted); font: 700 8px var(--font-mono), monospace; letter-spacing: .12em; text-transform: uppercase; }
+.ce-rail-context strong { display: block; margin-top: 8px; font-size: 11px; letter-spacing: -.015em; }
+.ce-rail-context p { margin: 5px 0 10px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.ce-progress { height: 3px; overflow: hidden; background: #d8e1ee; }.ce-progress i { display: block; width: 78%; height: 100%; background: var(--blue); }
+.ce-rail-footer { display: flex; align-items: center; gap: 7px; margin: 16px 8px 0; color: var(--muted); font: 700 8px var(--font-mono), monospace; letter-spacing: .07em; }.ce-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+.ce-workspace { width: calc(100% - 242px); margin-left: 242px; min-height: 100vh; }
+.ce-header { position: sticky; top: 0; z-index: 15; height: 72px; display: flex; align-items: center; gap: 20px; padding: 0 42px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.94); backdrop-filter: blur(16px); }
+.ce-header-title { min-width: 175px; }.ce-header-title b { display:block; color: var(--ink); font: 700 10px var(--font-mono), monospace; letter-spacing: .14em; }.ce-header-title span { display:block; margin-top:4px; color:var(--muted); font: 700 8px var(--font-mono),monospace; letter-spacing:.08em; text-transform:uppercase; }
+.ce-command { flex: 1; max-width: 470px; display:flex; align-items:center; gap:9px; min-height: 34px; padding: 0 10px; border:1px solid transparent; background:var(--surface-muted); color:var(--muted); font-size:11px; }.ce-command:hover{border-color:var(--line-strong);background:var(--surface)}.ce-command span{flex:1}.ce-command kbd{padding:2px 5px;border:1px solid var(--line-strong);background:var(--surface);font:700 8px var(--font-mono),monospace;color:var(--muted)}
+.ce-main { max-width: 1460px; margin: 0 auto; padding: 50px 48px 42px; }
+.ce-dashboard-flow { display: flex; flex-direction: column; }
+.ce-dashboard-flow > * { order: 10; }
+.ce-dashboard-flow > :first-child { order: 0; }
+.ce-dashboard-flow > #overview { order: 1; }
+.ce-dashboard-flow > #discovery-rules { order: 2; }
+.ce-dashboard-flow > section:last-of-type { order: 3; }
+.ce-page-eyebrow { color: var(--blue); font: 700 9px var(--font-mono), monospace; letter-spacing: .12em; text-transform: uppercase; }
+.ce-page-title { margin: 12px 0 0; color: var(--ink); font-size: clamp(2rem,3.7vw,3.55rem); line-height: .98; letter-spacing: -.075em; font-weight: 750; }.ce-page-copy{max-width:670px;margin-top:14px;color:var(--muted);font-size:13px;line-height:1.65}
+.ce-surface { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }.ce-muted-surface{border:1px solid var(--line);background:var(--surface-muted)}
+.ce-button-primary,.ce-button-secondary,.ce-button-quiet{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 13px;border-radius:6px;font-size:11px;font-weight:750;transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease}.ce-button-primary{border:1px solid var(--ink);background:var(--ink);color:#fff}.ce-button-primary:hover{background:var(--blue);border-color:var(--blue)}.ce-button-secondary{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)}.ce-button-secondary:hover{border-color:var(--blue);color:var(--blue)}.ce-button-quiet{border:1px solid transparent;background:transparent;color:var(--muted)}.ce-button-quiet:hover{background:var(--surface-muted);color:var(--ink)}.ce-button-primary:active,.ce-button-secondary:active{transform:scale(.98)}
+.ce-field { min-height: 37px; width: 100%; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-muted); color: var(--ink); font-size: 11px; outline: none; }.ce-field:focus{border-color:var(--blue);background:var(--surface)}
+.ce-chip{display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:0 7px;border-radius:4px;background:var(--surface-muted);color:var(--muted);font:700 8px var(--font-mono),monospace;letter-spacing:.03em}.ce-chip-green{background:var(--green-soft);color:var(--green)}.ce-chip-blue{background:var(--blue-soft);color:var(--blue)}.ce-chip-red{background:var(--red-soft);color:var(--red)}
+.ce-drawer-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:28px;background:rgba(15,23,42,.42);backdrop-filter:blur(5px)}.ce-drawer{width:min(1120px,100%);max-height:min(880px,calc(100dvh - 56px));overflow:auto;padding:30px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 24px 72px rgba(21,35,56,.22)}
+@media (max-width: 920px){.ce-shell{display:block}.ce-rail{position:relative;width:100%;min-height:0;height:auto;flex-direction:row;align-items:center;gap:14px;padding:14px 18px}.ce-nav-label,.ce-rail-context,.ce-rail-footer{display:none}.ce-nav{display:flex;flex:1;overflow:auto}.ce-nav-link{display:flex;min-width:max-content;gap:7px;padding:0 9px}.ce-workspace{width:100%;margin-left:0}.ce-header{padding:0 22px}.ce-main{padding:38px 24px}.ce-header-title{display:none}}
+@media (max-width: 620px){.ce-rail{padding:12px 14px;overflow:hidden}.ce-brand-copy span{display:none}.ce-brand-copy strong{font-size:13px}.ce-nav-link span{font-size:10px}.ce-nav-badge{display:none}.ce-header{height:61px;gap:8px;padding:0 14px;overflow:hidden}.ce-command{min-width:0;max-width:none;flex:1}.ce-command span{overflow:hidden;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.ce-command kbd{display:none}.ce-main{min-width:0;padding:30px 14px;overflow:hidden}.ce-page-title{font-size:31px}.ce-page-copy{font-size:11px}.ce-drawer-backdrop{align-items:flex-end;padding:0}.ce-drawer{max-height:92dvh;padding:18px;border-radius:10px 10px 0 0}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* The rich job-description parser is shared by the role drawer. Keep its legacy utility markup, but render it within the same RCMS material system. */
+.ce-description [class*="bg-zinc"],.ce-description [class*="bg-black"]{background:var(--surface-muted)!important}.ce-description [class*="bg-\[\#121215\]"]{background:var(--surface)!important}.ce-description [class*="border-white"],.ce-description [class*="border-l-indigo"]{border-color:var(--line)!important}.ce-description [class*="text-zinc"]{color:var(--ink-soft)!important}.ce-description [class*="text-indigo"]{color:var(--blue)!important}.ce-description [class*="text-emerald"]{color:var(--green)!important}.ce-description [class*="text-amber"]{color:var(--amber)!important}.ce-description [class*="rounded-xl"]{border-radius:7px}.ce-description [class*="rounded-lg"]{border-radius:6px}.ce-description [class*="shadow"]{box-shadow:none!important}
+
+/* ==========================================================================
+   ATS Resume Builder & 1-Page A4 Precision Print Engine
+   ========================================================================== */
+
+.ats-a4-sheet {
+  width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+  max-height: 297mm;
+  padding: 10.5mm 13.5mm 10.5mm;
+  background: #ffffff;
+  color: #111827;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+  font-size: 8.8pt;
+  line-height: 1.28;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+.ats-a4-sheet hr {
+  border: 0;
+  border-top: 0.75pt solid #cbd5e1;
+  margin: 2.8pt 0 2.2pt;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 9999px;
+.ats-a4-sheet h1 {
+  font-size: 16.5pt;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+  line-height: 1.08;
+  color: #0f172a;
+  text-transform: uppercase;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+.ats-a4-sheet h2 {
+  font-size: 9.2pt;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin: 0;
+  color: #0f172a;
+  text-transform: uppercase;
+  line-height: 1.15;
 }
 
-/* Custom Thin Scrollbar for Split Pane */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
+.ats-a4-sheet h3 {
+  font-size: 8.65pt;
+  font-weight: 750;
+  margin: 0;
+  color: #0f172a;
+  line-height: 1.18;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+.ats-a4-sheet ul {
+  margin: 1.5pt 0 2.5pt;
+  padding-left: 11.5pt;
+  list-style-type: disc;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+.ats-a4-sheet li {
+  margin-bottom: 1.4pt;
+  font-size: 8.15pt;
+  line-height: 1.26;
+  color: #273444;
+}
+
+.ats-a4-sheet b, .ats-a4-sheet strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ats-a4-sheet a {
+  color: #1d5fd1;
+  text-decoration: none;
+}
+
+.ats-keyword-match {
+  background: rgba(16, 185, 129, 0.18);
+  border-radius: 3px;
+  padding: 0 2px;
+  color: #065f46 !important;
+  font-weight: 750 !important;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35);
+}
+
+.ats-f-pattern-box {
+  position: absolute;
+  pointer-events: none;
+  border: 1.5px dashed rgba(29, 95, 209, 0.65);
+  background: rgba(29, 95, 209, 0.06);
   border-radius: 4px;
+  z-index: 10;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+.ats-f-pattern-tag {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  background: #1d5fd1;
+  color: white;
+  font: 700 7.5pt var(--font-mono), monospace;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
 }
 
-/* Glass & Card Micro-Borders */
-.card-clean {
-  background: #121215;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
-}
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    overflow: hidden !important;
+  }
 
-.card-clean:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  .no-print,
+  .ce-rail,
+  .ce-header,
+  header,
+  aside,
+  button,
+  .ce-command {
+    display: none !important;
+  }
+
+  .ce-workspace,
+  .ce-main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .ats-a4-sheet {
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    min-height: 297mm !important;
+    padding: 10.5mm 13.5mm 10.5mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+  }
 }
 

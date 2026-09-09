@@ -33,12 +33,21 @@ const ONSITE_KEYWORDS = [
 const SENIOR_DESC_SIGNALS = [
   "staff-level", "staff level", "principal engineer", "staff engineer",
   "lead engineer", "tech lead", "engineering manager", "senior engineer",
-  "8+ years", "7+ years", "6+ years", "5+ years",
+  "5+ years", "6+ years", "7+ years", "8+ years", "10+ years", "12+ years", "15+ years",
   "minimum 5 years", "minimum 6 years", "minimum 7 years", "minimum 8 years",
   "at least 5 years", "at least 6 years", "at least 7 years", "at least 8 years",
-  "10+ years", "12+ years", "15+ years",
+  "5 to 8 years", "5-8 years",
   "you have led", "you have managed", "you will lead", "will manage a team",
   "manage engineers", "people manager",
+];
+
+export const EXCESSIVE_EXPERIENCE_REGEXES = [
+  /\b(?:[3-9]|\d{2,})\s*\+\s*(?:years?|yrs?)\b/i,
+  /\b(?:[3-9]|\d{2,})\s*(?:-|–|to)\s*(?:[4-9]|\d{2,})\s*(?:years?|yrs?)\b/i,
+  /\b(?:at least|minimum of|minimum|required)\s*(?:[3-9]|\d{2,})\s*(?:years?|yrs?)\b/i,
+  /(?<!\b(?:0|1|2)\s*(?:-|–|to)\s*)\b(?:[3-9]|\d{2,})\s*(?:years?|yrs?)\s+(?:of\s+)?(?:hands-on\s+|professional\s+|relevant\s+|commercial\s+|software\s+|engineering\s+)?experience\b/i,
+  /\bmentor(?:ing)?\s+(?:junior|other|mid|team|engineers|developers)\b/i,
+  /\b(?:lead|manage)\s+(?:a\s+team|engineers|developers)\b/i,
 ];
 
 export function cleanCompanySlug(rawCompany: string): { company: string; companySlug: string } {
@@ -444,7 +453,28 @@ export function determineOpportunitySignals(job: {
   return signals;
 }
 
-export function isStrictlyRemoteDeveloperRole(title: string, location: string = "", description: string = ""): boolean {
+export const MAX_POSTING_AGE_DAYS = 21;
+export const MAX_POSTING_AGE_MS = MAX_POSTING_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+export function isOlderThanMaxPostingAge(
+  postedAt: Date | string | number | null | undefined,
+  maxDays: number = MAX_POSTING_AGE_DAYS,
+  nowMs: number = Date.now()
+): boolean {
+  if (!postedAt) return false;
+  const postedDate = postedAt instanceof Date ? postedAt : new Date(postedAt);
+  const postedMs = postedDate.getTime();
+  if (isNaN(postedMs)) return false;
+  const ageMs = nowMs - postedMs;
+  return ageMs > maxDays * 24 * 60 * 60 * 1000;
+}
+
+export function isStrictlyRemoteDeveloperRole(
+  title: string,
+  location: string = "",
+  description: string = "",
+  postedAt?: Date | string | null
+): boolean {
   const lowerTitle = title.toLowerCase();
   const lowerLoc = location.toLowerCase();
   const lowerDesc = description.toLowerCase();
@@ -486,10 +516,19 @@ export function isStrictlyRemoteDeveloperRole(title: string, location: string = 
     return false;
   }
 
-  // 5. Exclude Senior / Staff signals in DESCRIPTION body
+  // 5. Exclude Senior / Staff / Excessive Experience signals in DESCRIPTION body
   if (lowerDesc) {
     const hasSeniorDescSignal = SENIOR_DESC_SIGNALS.some((sig) => lowerDesc.includes(sig));
     if (hasSeniorDescSignal) return false;
+
+    if (EXCESSIVE_EXPERIENCE_REGEXES.some((rx) => rx.test(lowerDesc))) {
+      return false;
+    }
+  }
+
+  // 6. Strict 21-day ceiling: Discard jobs posted more than 21 days (3 weeks) ago
+  if (postedAt && isOlderThanMaxPostingAge(postedAt, MAX_POSTING_AGE_DAYS)) {
+    return false;
   }
 
   return true;
