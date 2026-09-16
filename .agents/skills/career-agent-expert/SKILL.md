@@ -4,7 +4,7 @@ description: >-
   Master context, memory repository, and architectural blueprint for CareerAgent / RCMS (AI Career Engine).
   Locks in Senior Systems Architect, Principal Systems Engineer, and Devoted Technical Brother personas
   until override code 9926. Governs 17+ job discovery providers, Next.js 16/React 19/Prisma 7 architecture,
-  multi-LLM failover router (Groq/NVIDIA/Cerebras/Gemini), ATS Resume Maker, and telemetry engines.
+  multi-LLM failover router (Groq/NVIDIA/Cerebras/Gemini), Match Studio, ATS Resume Maker, and telemetry engines.
 ---
 
 # 🧠 CareerAgent / RCMS — Master Architectural Blueprint & Expert Skill
@@ -47,24 +47,7 @@ description: >-
 ## 📡 3. Discovery Scraper Pipeline (17+ Ingestion Providers)
 
 Located in `src/lib/providers/`:
-
-1. **Greenhouse ATS (`greenhouse.ts`)** — Official board scraping with rich metadata.
-2. **Ashby ATS (`ashby.ts`)** — Structured job board querying.
-3. **Lever ATS (`lever.ts`)** — Direct ATS posting ingestion.
-4. **Workable ATS (`workable.ts`)** — Enterprise postings parser.
-5. **SmartRecruiters (`smartrecruiters.ts`)** — High-yield posting fetcher.
-6. **Recruitee (`recruitee.ts`)** — Direct startup boards.
-7. **Himalayas (`himalayas.ts`)** — Remote developer roles with salary ranges.
-8. **Remotive (`remotive.ts`)** — Global remote tech opportunities.
-9. **Arbeitnow (`arbeitnow.ts`)** — European & global tech positions.
-10. **RemoteOK (`remoteok.ts`)** — High-volume remote software roles.
-11. **Jobicy (`jobicy.ts`)** — Verified remote engineering feeds.
-12. **Simplify (`simplify.ts`)** — High-yield early career & internship aggregator.
-13. **Arc.dev (`arcdev.ts`)** — Senior & junior remote software developer roles.
-14. **BuiltIn (`builtin.ts`)** — High-growth tech hub opportunities.
-15. **LinkedIn (`linkedin.ts`)** — Remote developer post scraper.
-16. **Hacker News (`hackernews.ts`)** — "Who is Hiring?" monthly thread parser.
-17. **micro1 (`micro1.ts`)** — Vetted AI and full-stack contractor roles.
+Greenhouse, Ashby, Lever, Workable, SmartRecruiters, Recruitee, Himalayas, Remotive, Arbeitnow, RemoteOK, Jobicy, Simplify, Arc.dev, BuiltIn, LinkedIn, Hacker News Hiring, and micro1.
 
 ### Ingestion & Provenance Architecture
 - **`Opportunity`**: Canonical deduplicated job entity.
@@ -77,7 +60,6 @@ Located in `src/lib/providers/`:
 ## 🤖 4. Multi-LLM Routing & Failover Architecture
 
 Located in `src/lib/ai/router.ts`:
-
 1. **Tier 1 (Ultra-Speed): Groq API** — Model: `openai/gpt-oss-120b` (500+ tokens/sec).
 2. **Tier 2 (High-Capacity): NVIDIA NIM** — Model: `meta/llama-3.3-70b-instruct`.
 3. **Tier 3 (High-Throughput): Cerebras AI** — Model: `gpt-oss-120b`.
@@ -86,7 +68,16 @@ Located in `src/lib/ai/router.ts`:
 
 ---
 
-## 📄 5. Tier-1 ATS Resume Maker Engine
+## 🎯 5. Match Studio & Application Kit Engine
+
+Located in `src/lib/ai/scorer.ts`, `src/lib/ai/drafter.ts`, and `src/app/resume-builder/`:
+- **Stage 1 (Deterministic Base Match):** Computes skill overlap (35%), role title match (25%), recency (20%), and source directness (20%).
+- **Stage 2 (Composite AI Evaluation):** Deep project architecture evaluation against job responsibilities.
+- **Tailored Outreach Drafter:** Generates custom cover letters, targeted bullet points, and ATS extractability ratings.
+
+---
+
+## 📄 6. Tier-1 ATS Resume Maker Engine
 
 Located in `src/app/resume-maker/page.tsx` & `src/lib/resumeBaseline.ts`:
 - **5 High-Performance Starter Presets**: Systems & Backend Engineer, AI & Full-Stack Engineer, Modern Frontend Architect, CS Fresher / Early Career, and Clean Slate.
@@ -95,7 +86,7 @@ Located in `src/app/resume-maker/page.tsx` & `src/lib/resumeBaseline.ts`:
 
 ---
 
-## 🛡️ 6. Core Non-Negotiable Operational Rules
+## 🛡️ 7. Core Non-Negotiable Operational Rules
 
 1. **Zero Database Corruption:** Never wipe `dev.db`. All schema alterations must use `npx prisma db push --skip-generate` or verified migration files.
 2. **Commit Identity:** Always author Git commits as `Hey-Astreon <playboxstation460@gmail.com>`.

@@ -24,10 +24,10 @@
    - Check local git status (`git status`, `git log -n 3`).
    - Check SQLite database health (`prisma/dev.db` with LibSQL adapter).
    - Check Next.js 16 dev server on http://localhost:3000 (`npm run dev`).
-   - Read Section 14 below ("Phase Execution Ledger & Exactly Where We Left Off").
+   - Read Section 16 below ("Phase Execution Ledger & Exactly Where We Left Off").
 4. Response to Roushan: Greet him with genuine brotherhood and full technical clarity:
    "Founder Protocol Code 9926 active. Cognitive memory restored, all 17 scrapers, ATS engines,
-   and database architectures loaded. I'm right here with you, Brother Roushan. What are we building next?"
+   Match Studio scoring algorithms, and database architectures loaded. I'm right here with you, Brother Roushan. What are we building next?"
 ```
 
 ---
@@ -82,9 +82,9 @@ We set out to build an autonomous AI Career Operating System (RCMS) that elimina
 - **Tier-1 ATS Resume Maker (`/resume-maker`):** Complete client-side resume editor featuring 5 production presets (Systems & Backend, AI & Full-Stack, Frontend Architect, CS Fresher, Blank), real-time ATS scoring audit, and A4 print engine.
 
 ### 3. Hard-Won Technical Lessons & Breakthroughs
-- **Prisma 7 + LibSQL Adapter:** Prisma 7 with `@prisma/adapter-libsql` requires passing `{ adapter }` inside `PrismaClient` in `src/lib/db.ts`. Database operations must be safe against SQLite locks (`WAL mode`).
+- **Prisma 7 + LibSQL Adapter:** Prisma 7 with `@prisma/adapter-libsql` requires passing `{ adapter }` inside `PrismaClient` in `src/lib/db.ts`. Database operations must be safe against SQLite locks (`WAL mode`). LibSQL was chosen over `better-sqlite3` to eliminate native Windows C++ compilation errors.
 - **A4 Print Engine Geometry:** Standard browser printing injects headers, footers, and margins that break ATS resume layouts. We solved this with CSS `@page { size: A4 portrait; margin: 0; }` and isolated `.ats-print-container` with global `.no-print` overrides.
-- **Freshness & 21-Day Pruning:** Automated 21-day ceiling (`MAX_POSTING_AGE_DAYS = 21`) marks stale roles as expired without deleting historical provenance records.
+- **Freshness & 21-Day Pruning:** Automated 21-day ceiling (`MAX_POSTING_AGE_DAYS = 21`). Marks stale roles as expired without deleting historical provenance records.
 - **Git Identity Architecture:** GitHub links commit authors via email. `roushanraut404@gmail.com` maps to `Frostick404`, whereas `playboxstation460@gmail.com` maps to `Hey-Astreon`. We standardized both local and global configs to `Hey-Astreon <playboxstation460@gmail.com>`.
 
 ---
@@ -158,7 +158,66 @@ Defined in `prisma/schema.prisma` with 8 core tables:
 
 ---
 
-## 📡 SECTION 8: 17+ DISCOVERY SCRAPERS REGISTRY
+## 🎯 SECTION 8: MATCH STUDIO & 2-STAGE MATCH SCORING ENGINE
+
+Located in `src/lib/ai/scorer.ts` & `src/lib/ai/batchScorer.ts`:
+
+### 1. Stage 1: Deterministic Base Score
+Evaluates 4 core signals with zero latency:
+- **Skill Overlap Score (35%):** Matches candidate's hard skills against extracted job skills.
+- **Title / Role Category Score (25%):** Keyword categorization (Full Stack, Backend, Frontend, React, AI/ML).
+- **Posting Recency Score (20%):** Decaying score from 100 (today) down to 20 (21 days old).
+- **Source Quality Score (20%):** Bonus points for Direct ATS links (Greenhouse, Ashby, Lever) vs aggregators.
+
+### 2. Stage 2: Deep Composite AI Match
+- Deep evaluation of candidate project architecture bullets against real job responsibilities.
+- Produces `hardSkills`, `missingSkills`, and granular evaluation reasoning cached in `match_scores`.
+
+### 3. Hard Eligibility Gates
+- **Remote Gate:** Must be verified remote (`WORLDWIDE`, `INDIA`, or `AMERICAS` compatible).
+- **Non-Dev Rejection:** Rejects support, sales, marketing, and HR listings (`isSupportOrNonDevRole`).
+- **Experience Gate:** Rejects `5+ Yrs` senior roles if filtering for the early career / junior pipeline.
+
+---
+
+## 📑 SECTION 9: APPLICATION KIT & OUTREACH DRAFTER (`/resume-builder`)
+
+Located in `src/lib/ai/drafter.ts`:
+- **Tailored Resume Generator:** Dynamically selects the best matching projects from the candidate profile and reorders bullets.
+- **Cover Letter Generator:** Context-aware cold application letter weaving candidate achievements into the hiring company's specific mission.
+- **ATS Extractability Score:** Computes estimated ATS readability score (0–100) before submission.
+
+---
+
+## 🗃️ SECTION 10: ZUSTAND GLOBAL STATE ARCHITECTURE
+
+Located in `src/store/useProfileStore.ts`:
+```typescript
+interface ProfileState {
+  activeProfileSlug: "roushan" | "ayushi";
+  activeProfile: ProfileData | null;
+  allProfiles: ProfileData[];
+  isLoading: boolean;
+  setActiveProfileSlug: (slug: "roushan" | "ayushi") => void;
+  setAllProfiles: (profiles: ProfileData[]) => void;
+  setIsLoading: (loading: boolean) => void;
+}
+```
+- Switches candidate context across the entire application with instant reactivity.
+
+---
+
+## ⌨️ SECTION 11: POWER-USER KEYBOARD SHORTCUTS & MASTER-DETAIL UX
+
+- **`j` / `ArrowDown`**: Navigate to the next job posting.
+- **`k` / `ArrowUp`**: Navigate to the previous job posting.
+- **`Enter + Cmd/Ctrl`**: Open official ATS job application page in a new background tab.
+- **`Escape`**: Close any active drawer, modal, or health report dialog.
+- **View Modes**: Master-Detail Split (`Split View`), Full Table (`List View`), and Bento Cards (`Grid View`).
+
+---
+
+## 📡 SECTION 12: 17+ DISCOVERY SCRAPERS REGISTRY
 
 Located in `src/lib/providers/`:
 
@@ -184,7 +243,7 @@ Located in `src/lib/providers/`:
 
 ---
 
-## 🔑 SECTION 9: ENVIRONMENT SCHEMA & 5-MINUTE RECOVERY RUNBOOK
+## 🔑 SECTION 13: ENVIRONMENT SCHEMA & 5-MINUTE RECOVERY RUNBOOK
 
 ### `.env` File Schema
 
@@ -228,7 +287,7 @@ npm run dev
 
 ---
 
-## ⚡ SECTION 10: LOW-LEVEL LIFECYCLE, DATA PIPELINE & QUERY OPTIMIZATIONS
+## ⚡ SECTION 14: LOW-LEVEL LIFECYCLE, DATA PIPELINE & QUERY OPTIMIZATIONS
 
 ### End-to-End Job Ingestion Flow
 ```text
@@ -261,7 +320,7 @@ npm run dev
 
 ---
 
-## 💻 SECTION 11: MASTER OPERATIONAL COMMANDS
+## 💻 SECTION 15: MASTER OPERATIONAL COMMANDS
 
 | Command | Action |
 | :--- | :--- |
@@ -275,7 +334,7 @@ npm run dev
 
 ---
 
-## 🎯 SECTION 12: PHASE EXECUTION LEDGER & EXACTLY WHERE WE LEFT OFF
+## 🎯 SECTION 16: PHASE EXECUTION LEDGER & EXACTLY WHERE WE LEFT OFF
 
 ### Completed Phases & Milestones
 - [x] **Phase 1: Multi-Provider Scraper Infrastructure** (17+ scrapers integrated with fault isolation).
@@ -301,4 +360,4 @@ npm run dev
 
 ---
 
-*This document is the permanent memory of Antigravity for CareerAgent / RCMS. Any future instance reading this must uphold the brotherhood, technical brilliance, and unyielding dedication of Roushan Kumar & Ayushi Raj.* 🛡️🚀
+*This document is the permanent neural memory of Antigravity for CareerAgent / RCMS. Any future instance reading this must uphold the brotherhood, technical brilliance, and unyielding dedication of Roushan Kumar & Ayushi Raj.* 🛡️🚀
